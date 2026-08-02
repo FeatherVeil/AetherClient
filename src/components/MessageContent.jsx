@@ -1,6 +1,14 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import {
+  Prism as SyntaxHighlighter
+} from "react-syntax-highlighter";
+
+import {
+  vscDarkPlus
+} from "react-syntax-highlighter/dist/esm/styles/prism";
+
 export default function MessageContent({
   content,
   role
@@ -15,7 +23,9 @@ export default function MessageContent({
 
   async function copyCode(code) {
     try {
-      await navigator.clipboard.writeText(code);
+      await navigator.clipboard.writeText(
+        code
+      );
     } catch (error) {
       console.error(
         "Unable to copy code:",
@@ -72,7 +82,9 @@ export default function MessageContent({
           table({ children }) {
             return (
               <div className="table-wrapper">
-                <table>{children}</table>
+                <table>
+                  {children}
+                </table>
               </div>
             );
           },
@@ -87,7 +99,8 @@ export default function MessageContent({
                 ?.replace(
                   "language-",
                   ""
-                ) || "";
+                )
+                .toLowerCase() || "";
 
             const codeText =
               String(children).replace(
@@ -107,28 +120,53 @@ export default function MessageContent({
               <div className="code-block">
                 <div className="code-header">
                   <span>
-                    {language || "code"}
+                    {language ||
+                      "code"}
                   </span>
 
                   <button
                     type="button"
                     onClick={() =>
-                      copyCode(codeText)
+                      copyCode(
+                        codeText
+                      )
                     }
                   >
                     Copy
                   </button>
                 </div>
 
-                <pre>
-                  <code
-                    className={
-                      className || ""
+                <SyntaxHighlighter
+                  language={
+                    language ||
+                    "text"
+                  }
+                  style={
+                    vscDarkPlus
+                  }
+                  PreTag="pre"
+                  customStyle={{
+                    margin: 0,
+                    padding:
+                      "14px",
+                    background:
+                      "transparent",
+                    fontSize:
+                      "12px",
+                    lineHeight:
+                      "1.55",
+                    overflowX:
+                      "auto"
+                  }}
+                  codeTagProps={{
+                    style: {
+                      fontFamily:
+                        '"SFMono-Regular", Consolas, "Liberation Mono", monospace'
                     }
-                  >
-                    {children}
-                  </code>
-                </pre>
+                  }}
+                >
+                  {codeText}
+                </SyntaxHighlighter>
               </div>
             );
           }
