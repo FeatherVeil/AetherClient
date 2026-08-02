@@ -16,6 +16,7 @@ import {
 } from "./project/projectEngine.js";
 
 import ModelSelector from "./components/ModelSelector.jsx";
+import MessageContent from "./components/MessageContent.jsx";
 import ProjectProgress from "./components/ProjectProgress.jsx";
 
 export default function App() {
@@ -62,7 +63,7 @@ export default function App() {
     setActiveChatId(newChat.id);
 
     setSelectedModel(
-      newChat.model
+      newChat.model || "aetherbot"
     );
 
     setProjectMenuOpen(false);
@@ -145,9 +146,7 @@ export default function App() {
     }
   }
 
-  function handleModelChange(
-    modelId
-  ) {
+  function handleModelChange(modelId) {
     setSelectedModel(modelId);
 
     if (!activeChatId) {
@@ -165,9 +164,7 @@ export default function App() {
     );
   }
 
-  function updateActiveChat(
-    changes
-  ) {
+  function updateActiveChat(changes) {
     if (!activeChatId) {
       return;
     }
@@ -206,17 +203,12 @@ export default function App() {
     updateActiveChat({
       project: {
         enabled: false,
-
         progress:
           activeChat.project
             ?.progress || 0,
-
         completed: false,
-
         manuallyCompleted: false,
-
         progressSpeed: 1,
-
         steps:
           activeChat.project
             ?.steps || []
@@ -266,11 +258,8 @@ export default function App() {
 
     const userMessage = {
       id: crypto.randomUUID(),
-
       role: "user",
-
       content: text,
-
       createdAt: Date.now()
     };
 
@@ -301,10 +290,8 @@ export default function App() {
         {
           messages:
             updatedMessages,
-
           title:
             newTitle,
-
           project:
             updatedProject
         }
@@ -334,7 +321,6 @@ export default function App() {
                 (message) => ({
                   role:
                     message.role,
-
                   content:
                     message.content
                 })
@@ -355,13 +341,10 @@ export default function App() {
 
       const assistantMessage = {
         id: crypto.randomUUID(),
-
         role: "assistant",
-
         content:
           data.message ||
           "I didn't receive a response.",
-
         createdAt: Date.now()
       };
 
@@ -379,7 +362,6 @@ export default function App() {
       updateActiveChat({
         messages:
           finalMessages,
-
         project:
           finalProject
       });
@@ -388,12 +370,9 @@ export default function App() {
 
       const errorMessage = {
         id: crypto.randomUUID(),
-
         role: "assistant",
-
         content:
           "Sorry, AetherBot could not respond right now.",
-
         createdAt: Date.now()
       };
 
@@ -411,7 +390,6 @@ export default function App() {
       updateActiveChat({
         messages:
           finalMessages,
-
         project:
           finalProject
       });
@@ -420,9 +398,7 @@ export default function App() {
     }
   }
 
-  function handleComposerKeyDown(
-    event
-  ) {
+  function handleComposerKeyDown(event) {
     if (
       event.key === "Enter" &&
       !event.shiftKey
@@ -783,9 +759,14 @@ export default function App() {
                           }`}
                         >
                           <div className="message-bubble">
-                            {
-                              message.content
-                            }
+                            <MessageContent
+                              content={
+                                message.content
+                              }
+                              role={
+                                message.role
+                              }
+                            />
                           </div>
                         </div>
                       )
