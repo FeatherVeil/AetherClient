@@ -195,6 +195,8 @@ input:focus-visible {
   align-items: center;
   gap: 3px;
 
+  min-width: 0;
+
   border-radius: 8px;
 }
 
@@ -222,6 +224,25 @@ input:focus-visible {
 
 .chat-list-item.active .chat-select {
   color: #f0f2f5;
+}
+
+.chat-title-input {
+  flex: 1;
+  min-width: 0;
+
+  width: 100%;
+
+  padding: 7px 8px;
+
+  border: 1px solid #454b58;
+  border-radius: 6px;
+
+  outline: none;
+
+  background: #111419;
+  color: #f0f2f5;
+
+  font-size: 13px;
 }
 
 .chat-delete {
