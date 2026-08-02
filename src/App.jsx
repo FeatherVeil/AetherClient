@@ -1,8 +1,74 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+import {
+  loadChats,
+  saveChats,
+  createChat,
+  updateChat,
+  deleteChat
+} from "./storage/chats.js";
 
 export default function App() {
+  const [chats, setChats] = useState(
+    () => loadChats()
+  );
+
+  const [activeChatId, setActiveChatId] =
+    useState(null);
+
   const [sidebarOpen, setSidebarOpen] =
     useState(true);
+
+  useEffect(() => {
+    saveChats(chats);
+  }, [chats]);
+
+  function handleNewChat() {
+    const newChat = createChat();
+
+    setChats((currentChats) => [
+      newChat,
+      ...currentChats
+    ]);
+
+    setActiveChatId(newChat.id);
+  }
+
+  function handleDeleteChat(chatId) {
+    setChats((currentChats) =>
+      deleteChat(currentChats, chatId)
+    );
+
+    if (activeChatId === chatId) {
+      setActiveChatId(null);
+    }
+  }
+
+  function handleRenameChat(
+    chatId,
+    title
+  ) {
+    const trimmedTitle =
+      title.trim();
+
+    if (!trimmedTitle) return;
+
+    setChats((currentChats) =>
+      updateChat(
+        currentChats,
+        chatId,
+        {
+          title: trimmedTitle
+        }
+      )
+    );
+  }
+
+  const activeChat =
+    chats.find(
+      (chat) =>
+        chat.id === activeChatId
+    ) || null;
 
   return (
     <div className="aether-app">
@@ -24,7 +90,10 @@ export default function App() {
           )}
         </div>
 
-        <button className="new-chat-button">
+        <button
+          className="new-chat-button"
+          onClick={handleNewChat}
+        >
           <span>＋</span>
 
           {sidebarOpen && (
@@ -38,9 +107,47 @@ export default function App() {
               Chats
             </div>
 
-            <div className="empty-chat-list">
-              No conversations yet
-            </div>
+            {chats.length === 0 ? (
+              <div className="empty-chat-list">
+                No conversations yet
+              </div>
+            ) : (
+              <div className="chat-list">
+                {chats.map((chat) => (
+                  <div
+                    key={chat.id}
+                    className={`chat-list-item ${
+                      activeChatId === chat.id
+                        ? "active"
+                        : ""
+                    }`}
+                  >
+                    <button
+                      className="chat-select"
+                      onClick={() =>
+                        setActiveChatId(
+                          chat.id
+                        )
+                      }
+                    >
+                      {chat.title}
+                    </button>
+
+                    <button
+                      className="chat-delete"
+                      onClick={() =>
+                        handleDeleteChat(
+                          chat.id
+                        )
+                      }
+                      title="Delete chat"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -76,7 +183,11 @@ export default function App() {
           </button>
 
           <div className="header-title">
-            <span>AetherClient</span>
+            <span>
+              {activeChat
+                ? activeChat.title
+                : "AetherClient"}
+            </span>
           </div>
 
           <div className="header-actions">
@@ -84,32 +195,60 @@ export default function App() {
               ⌕
             </button>
 
-            <button title="New chat">
+            <button
+              title="New chat"
+              onClick={handleNewChat}
+            >
               ＋
             </button>
           </div>
         </header>
 
         <section className="chat-workspace">
-          <div className="welcome-screen">
-            <div className="welcome-logo">
-              A
+          {!activeChat ? (
+            <div className="welcome-screen">
+              <div className="welcome-logo">
+                A
+              </div>
+
+              <h2>
+                What can I help you with?
+              </h2>
+
+              <p>
+                Start a conversation or create
+                a project.
+              </p>
+
+              <button
+                className="welcome-new-chat"
+                onClick={handleNewChat}
+              >
+                ＋ Start a new chat
+              </button>
             </div>
+          ) : (
+            <div className="chat-placeholder">
+              <h2>
+                {activeChat.title}
+              </h2>
 
-            <h2>
-              What can I help you with?
-            </h2>
-
-            <p>
-              Ask a question, start a project,
-              or open AetherCode.
-            </p>
-          </div>
+              <p>
+                Your conversation will appear
+                here.
+              </p>
+            </div>
+          )}
 
           <div className="message-composer">
             <textarea
-              placeholder="Message AetherBot..."
+              placeholder={
+                activeChat
+                  ? "Message AetherBot..."
+                  : "Start a new chat..."
+              }
               rows="1"
+              disabled={!activeChat}
             />
 
             <div className="composer-bottom">
@@ -126,6 +265,7 @@ export default function App() {
               <button
                 className="send-button"
                 title="Send"
+                disabled={!activeChat}
               >
                 ↑
               </button>
