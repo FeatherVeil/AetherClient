@@ -44,30 +44,9 @@ export default function App() {
     }
   }
 
-  function handleRenameChat(
-    chatId,
-    title
-  ) {
-    const trimmedTitle =
-      title.trim();
-
-    if (!trimmedTitle) return;
-
-    setChats((currentChats) =>
-      updateChat(
-        currentChats,
-        chatId,
-        {
-          title: trimmedTitle
-        }
-      )
-    );
-  }
-
   const activeChat =
     chats.find(
-      (chat) =>
-        chat.id === activeChatId
+      (chat) => chat.id === activeChatId
     ) || null;
 
   return (
