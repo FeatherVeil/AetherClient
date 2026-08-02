@@ -1,311 +1,136 @@
 const PROJECT_PATTERNS = [
-  /\bmy goal is\b/i,
-  /\bi want to\b/i,
-  /\bi need to\b/i,
-  /\bi'm trying to\b/i,
-  /\bi am trying to\b/i,
-  /\bi'm working on\b/i,
-  /\bi am working on\b/i,
-  /\bi'm building\b/i,
-  /\bi am building\b/i,
-  /\bi'm making\b/i,
-  /\bi am making\b/i,
-  /\bi'm creating\b/i,
-  /\bi am creating\b/i,
-  /\bi need help (?:to|with)\b/i,
-  /\bi want help (?:to|with)\b/i,
-  /\bhelp me (?:build|make|create|learn|finish|achieve)\b/i,
-  /\bfinish\b/i,
-  /\bcomplete\b/i,
-  /\bachieve\b/i,
-  /\blearn\b/i,
-  /\bdevelop\b/i,
-  /\bbuild\b/i,
-  /\bcreate\b/i,
-  /\bmake\b/i
-];
-
-const PROJECT_KEYWORDS = [
-  "project",
-  "goal",
-  "plan",
-  "deadline",
-  "milestone",
-  "task",
-  "tasks",
-  "roadmap",
-  "build",
-  "building",
-  "create",
-  "creating",
-  "learn",
-  "learning",
-  "develop",
-  "developing",
-  "finish",
-  "complete",
-  "completion",
-  "achieve",
-  "achievement"
+  /\b(build|create|make|develop|design|launch|finish|complete|learn|study|write|prepare|plan|organize|start|improve|fix|solve|achieve|reach)\b/i,
+  /\b(goal|project|task|objective|deadline|milestone|roadmap|plan)\b/i,
+  /\b(i want to|i need to|i'm trying to|i am trying to|i need help to|help me)\b/i,
+  /\b(by (tomorrow|today|monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b/i,
+  /\b(step \d+|next step|what should i do next)\b/i
 ];
 
 const COMPLETION_PATTERNS = [
-  /\bi finished\b/i,
-  /\bi have finished\b/i,
-  /\bi'm finished\b/i,
-  /\bit's finished\b/i,
-  /\bit is finished\b/i,
-  /\bi completed\b/i,
-  /\bi have completed\b/i,
-  /\bit's complete\b/i,
-  /\bit is complete\b/i,
-  /\bi did it\b/i,
-  /\bi achieved it\b/i,
-  /\bwe're done\b/i,
-  /\bwe are done\b/i,
-  /\bmark .* done\b/i
+  /\b(done|finished|completed|complete|achieved|accomplished)\b/i,
+  /\b(it works|everything works|it's ready|it is ready)\b/i,
+  /\b(i finished|i completed|i did it|i made it)\b/i,
+  /\b(mark.*done|consider.*done)\b/i
 ];
 
 const SETBACK_PATTERNS = [
-  /\bi made a mistake\b/i,
-  /\bi made mistakes\b/i,
-  /\bi did something wrong\b/i,
-  /\bi did it wrong\b/i,
-  /\bi missed something\b/i,
-  /\bi forgot something\b/i,
-  /\bi broke\b/i,
-  /\bit doesn't work\b/i,
-  /\bit does not work\b/i,
-  /\bi failed\b/i,
-  /\bthere's an error\b/i,
-  /\bthere is an error\b/i,
-  /\bwe need to fix\b/i,
-  /\bi need to fix\b/i,
-  /\bwent wrong\b/i
+  /\b(i (made|did) (a )?(mistake|error))\b/i,
+  /\b(i messed up)\b/i,
+  /\b(i forgot)\b/i,
+  /\b(i missed)\b/i,
+  /\b(i broke)\b/i,
+  /\b(doesn't work|does not work|not working)\b/i,
+  /\b(wrong|incorrect|failed|failure|problem|issue|bug)\b/i,
+  /\b(i need to redo)\b/i,
+  /\b(i have to redo)\b/i
 ];
 
-function normalize(text) {
-  return String(text || "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+const PROGRESS_PATTERNS = [
+  /\b(i (did|finished|completed|made|built|created|fixed))\b/i,
+  /\b(done with)\b/i,
+  /\b(finished)\b/i,
+  /\b(completed)\b/i,
+  /\b(working now)\b/i,
+  /\b(it works now)\b/i,
+  /\b(fixed it)\b/i,
+  /\b(implemented)\b/i,
+  /\b(added)\b/i
+];
 
-function countKeywordMatches(text) {
-  const lowerText =
-    text.toLowerCase();
-
-  return PROJECT_KEYWORDS.reduce(
-    (count, keyword) => {
-      return lowerText.includes(
-        keyword
-      )
-        ? count + 1
-        : count;
-    },
-    0
-  );
-}
-
-function hasProjectPattern(text) {
-  return PROJECT_PATTERNS.some(
-    (pattern) =>
-      pattern.test(text)
-  );
-}
-
-function hasCompletionPattern(text) {
-  return COMPLETION_PATTERNS.some(
-    (pattern) =>
-      pattern.test(text)
-  );
-}
-
-function hasSetbackPattern(text) {
-  return SETBACK_PATTERNS.some(
-    (pattern) =>
-      pattern.test(text)
+function matchesAny(
+  text,
+  patterns
+) {
+  return patterns.some(
+    (pattern) => pattern.test(text)
   );
 }
 
 export function analyzeProjectMessage(
-  text
+  message
 ) {
-  const normalized =
-    normalize(text);
+  const text = String(message || "").trim();
 
-  if (!normalized) {
+  if (!text) {
     return {
       isProjectSignal: false,
       completed: false,
       setback: false,
-      confidence: 0,
-      progressAdjustment: 0
+      progressSignal: false
     };
   }
 
-  const patternMatch =
-    hasProjectPattern(
-      normalized
-    );
-
-  const keywordMatches =
-    countKeywordMatches(
-      normalized
-    );
-
-  const completed =
-    hasCompletionPattern(
-      normalized
-    );
-
-  const setback =
-    hasSetbackPattern(
-      normalized
-    );
-
-  let confidence = 0;
-
-  if (patternMatch) {
-    confidence += 0.55;
-  }
-
-  confidence += Math.min(
-    keywordMatches * 0.08,
-    0.32
+  const completed = matchesAny(
+    text,
+    COMPLETION_PATTERNS
   );
 
-  if (
-    normalized.length > 80
-  ) {
-    confidence += 0.08;
-  }
-
-  confidence = Math.min(
-    confidence,
-    1
+  const setback = matchesAny(
+    text,
+    SETBACK_PATTERNS
   );
 
-  let progressAdjustment = 0;
+  const progressSignal = matchesAny(
+    text,
+    PROGRESS_PATTERNS
+  );
 
-  if (completed) {
-    progressAdjustment = 100;
-  } else if (setback) {
-    /*
-     * A setback does not directly reduce
-     * project percentage.
-     *
-     * The project system will later use
-     * setbacks to reduce the rate at which
-     * progress is gained.
-     */
-    progressAdjustment = 0;
-  }
+  const projectSignal =
+    matchesAny(
+      text,
+      PROJECT_PATTERNS
+    ) ||
+    progressSignal ||
+    setback ||
+    completed;
 
   return {
-    isProjectSignal:
-      confidence >= 0.55 ||
-      completed,
+    isProjectSignal: projectSignal,
     completed,
     setback,
-    confidence,
-    progressAdjustment
+    progressSignal
   };
 }
 
-export function analyzeProjectConversation(
-  messages
+export function calculateProgressSpeed(
+  setbackCount
 ) {
-  if (!Array.isArray(messages)) {
-    return {
-      isProject: false,
-      progress: 0,
-      confidence: 0,
-      setbacks: 0,
-      completed: false
-    };
+  if (setbackCount <= 0) {
+    return 4;
   }
 
-  let strongestConfidence = 0;
-  let projectSignals = 0;
-  let setbacks = 0;
-  let completed = false;
-
-  for (const message of messages) {
-    if (
-      message?.role !== "user"
-    ) {
-      continue;
-    }
-
-    const analysis =
-      analyzeProjectMessage(
-        message.content
-      );
-
-    if (
-      analysis.isProjectSignal
-    ) {
-      projectSignals += 1;
-    }
-
-    strongestConfidence =
-      Math.max(
-        strongestConfidence,
-        analysis.confidence
-      );
-
-    if (analysis.setback) {
-      setbacks += 1;
-    }
-
-    if (analysis.completed) {
-      completed = true;
-    }
+  if (setbackCount === 1) {
+    return 3;
   }
 
-  const isProject =
-    projectSignals > 0 ||
-    strongestConfidence >= 0.55;
+  if (setbackCount === 2) {
+    return 2;
+  }
 
-  let progress = 0;
+  return 1;
+}
 
+export function updateProjectProgress({
+  currentProgress = 0,
+  setbackCount = 0,
+  completed = false,
+  progressSignal = false
+}) {
   if (completed) {
-    progress = 100;
-  } else if (isProject) {
-    progress = Math.min(
-      5 +
-        projectSignals * 3,
-      20
-    );
+    return 100;
   }
 
-  return {
-    isProject,
-    progress,
-    confidence:
-      strongestConfidence,
-    setbacks,
-    completed
-  };
+  if (!progressSignal) {
+    return currentProgress;
+  }
+
+  const speed =
+    calculateProgressSpeed(
+      setbackCount
+    );
+
+  return Math.min(
+    99,
+    currentProgress + speed
+  );
 }
-
-export function getProjectStatus(
-  messages,
-  manuallyMarkedDone = false
-) {
-  const analysis =
-    analyzeProjectConversation(
-      messages
-    );
-
-  if (manuallyMarkedDone) {
-    return {
-      ...analysis,
-      isProject: true,
-      progress: 100,
-      completed: true
-    };
-  }
-
-  return analysis;
-      }
