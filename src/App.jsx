@@ -11,7 +11,8 @@ import {
 
 import {
   updateProject,
-  markProjectComplete
+  markProjectComplete,
+  enableProject
 } from "./project/projectEngine.js";
 
 import ModelSelector from "./components/ModelSelector.jsx";
@@ -43,6 +44,9 @@ export default function App() {
   const [selectedModel, setSelectedModel] =
     useState("aetherbot");
 
+  const [projectMenuOpen, setProjectMenuOpen] =
+    useState(false);
+
   useEffect(() => {
     saveChats(chats);
   }, [chats]);
@@ -60,6 +64,8 @@ export default function App() {
     setSelectedModel(
       newChat.model
     );
+
+    setProjectMenuOpen(false);
   }
 
   function handleSelectChat(chat) {
@@ -68,6 +74,8 @@ export default function App() {
     setSelectedModel(
       chat.model || "aetherbot"
     );
+
+    setProjectMenuOpen(false);
   }
 
   function handleDeleteChat(chatId) {
@@ -86,6 +94,8 @@ export default function App() {
       setEditingChatId(null);
       setEditingTitle("");
     }
+
+    setProjectMenuOpen(false);
   }
 
   function startEditingChat(chat) {
@@ -171,22 +181,49 @@ export default function App() {
     );
   }
 
-  function updateActiveChatMessages(
-    messages
-  ) {
-    if (!activeChatId) {
+  function handleEnableProject() {
+    if (!activeChat) {
       return;
     }
 
-    setChats((currentChats) =>
-      updateChat(
-        currentChats,
-        activeChatId,
-        {
-          messages
-        }
-      )
-    );
+    const project =
+      enableProject(
+        activeChat.project
+      );
+
+    updateActiveChat({
+      project
+    });
+
+    setProjectMenuOpen(false);
+  }
+
+  function handleDisableProject() {
+    if (!activeChat) {
+      return;
+    }
+
+    updateActiveChat({
+      project: {
+        enabled: false,
+
+        progress:
+          activeChat.project
+            ?.progress || 0,
+
+        completed: false,
+
+        manuallyCompleted: false,
+
+        progressSpeed: 1,
+
+        steps:
+          activeChat.project
+            ?.steps || []
+      }
+    });
+
+    setProjectMenuOpen(false);
   }
 
   function handleMarkProjectDone() {
@@ -251,10 +288,6 @@ export default function App() {
         ? generateChatTitle(text)
         : activeChat.title;
 
-    /*
-     * Analyze the conversation after
-     * the new user message.
-     */
     const updatedProject =
       updateProject(
         activeChat.project,
@@ -337,11 +370,6 @@ export default function App() {
         assistantMessage
       ];
 
-      /*
-       * Analyze again after the AI response.
-       * This gives the project system more
-       * context.
-       */
       const finalProject =
         updateProject(
           updatedProject,
@@ -608,6 +636,73 @@ export default function App() {
           </div>
 
           <div className="header-actions">
+            {activeChat && (
+              <div className="project-menu-wrapper">
+                <button
+                  title="Project options"
+                  onClick={() =>
+                    setProjectMenuOpen(
+                      (open) =>
+                        !open
+                    )
+                  }
+                >
+                  {activeChat.project
+                    ?.enabled
+                    ? "🚀"
+                    : "◇"}
+                </button>
+
+                {projectMenuOpen && (
+                  <div className="project-menu">
+                    {!activeChat.project
+                      ?.enabled ? (
+                      <button
+                        onClick={
+                          handleEnableProject
+                        }
+                      >
+                        🚀 Make this a project
+                      </button>
+                    ) : (
+                      <>
+                        <div className="project-menu-status">
+                          <strong>
+                            Project mode
+                          </strong>
+
+                          <span>
+                            {
+                              activeChat
+                                .project
+                                .progress
+                            }
+                            %
+                          </span>
+                        </div>
+
+                        <button
+                          onClick={
+                            handleMarkProjectDone
+                          }
+                        >
+                          ✓ Mark as done
+                        </button>
+
+                        <button
+                          onClick={
+                            handleDisableProject
+                          }
+                        >
+                          Turn off project mode
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             <button title="Search">
               ⌕
             </button>
