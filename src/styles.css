@@ -385,7 +385,6 @@ input:focus-visible {
 
   flex-direction: column;
   align-items: center;
-  justify-content: center;
 
   padding: 30px 20px;
 }
@@ -442,24 +441,88 @@ input:focus-visible {
   background: #20242c;
 }
 
-.chat-placeholder {
-  margin-top: -100px;
+/* CONVERSATION */
+
+.conversation {
+  width: min(780px, 100%);
+  flex: 1;
+
+  min-height: 0;
+
+  overflow-y: auto;
+
+  padding: 20px 0 150px;
+}
+
+.conversation-empty {
+  margin-top: 20vh;
 
   color: #777f8d;
   text-align: center;
 }
 
-.chat-placeholder h2 {
+.conversation-empty h2 {
   margin-bottom: 8px;
 
   color: #dfe2e8;
   font-size: 20px;
 }
 
-.chat-placeholder p {
+.conversation-empty p {
   margin: 0;
 
   font-size: 13px;
+}
+
+.message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.message-row {
+  display: flex;
+  width: 100%;
+}
+
+.message-row.user {
+  justify-content: flex-end;
+}
+
+.message-row.assistant {
+  justify-content: flex-start;
+}
+
+.message-bubble {
+  max-width: min(680px, 85%);
+
+  padding: 11px 14px;
+
+  border-radius: 14px;
+
+  color: #e8eaf0;
+
+  font-size: 14px;
+  line-height: 1.6;
+
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.message-row.user .message-bubble {
+  background: #252a33;
+}
+
+.message-row.assistant .message-bubble {
+  padding-left: 2px;
+
+  background: transparent;
+}
+
+.message-bubble.typing {
+  color: #7d8491;
+
+  font-style: italic;
 }
 
 /* COMPOSER */
@@ -590,6 +653,10 @@ input:focus-visible {
 
   .welcome-screen h2 {
     font-size: 22px;
+  }
+
+  .conversation {
+    padding-bottom: 140px;
   }
 
   .message-composer {
