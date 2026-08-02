@@ -25,6 +25,12 @@ export default function App() {
   const [editingTitle, setEditingTitle] =
     useState("");
 
+  const [messageText, setMessageText] =
+    useState("");
+
+  const [isSending, setIsSending] =
+    useState(false);
+
   useEffect(() => {
     saveChats(chats);
   }, [chats]);
@@ -98,6 +104,136 @@ export default function App() {
 
     if (event.key === "Escape") {
       cancelEditing();
+    }
+  }
+
+  function updateActiveChatMessages(
+    messages
+  ) {
+    if (!activeChatId) return;
+
+    setChats((currentChats) =>
+      updateChat(
+        currentChats,
+        activeChatId,
+        {
+          messages
+        }
+      )
+    );
+  }
+
+  async function handleSendMessage() {
+    const text = messageText.trim();
+
+    if (
+      !text ||
+      !activeChatId ||
+      isSending
+    ) {
+      return;
+    }
+
+    const activeChat = chats.find(
+      (chat) =>
+        chat.id === activeChatId
+    );
+
+    if (!activeChat) return;
+
+    const userMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: text,
+      createdAt: Date.now()
+    };
+
+    const updatedMessages = [
+      ...activeChat.messages,
+      userMessage
+    ];
+
+    updateActiveChatMessages(
+      updatedMessages
+    );
+
+    setMessageText("");
+    setIsSending(true);
+
+    try {
+      const response = await fetch(
+        "/.netlify/functions/aetherbot",
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+
+          body: JSON.stringify({
+            messages:
+              updatedMessages.map(
+                (message) => ({
+                  role: message.role,
+                  content:
+                    message.content
+                })
+              )
+          })
+        }
+      );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            "AetherBot request failed."
+        );
+      }
+
+      const assistantMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content:
+          data.message ||
+          "I didn't receive a response.",
+        createdAt: Date.now()
+      };
+
+      updateActiveChatMessages([
+        ...updatedMessages,
+        assistantMessage
+      ]);
+    } catch (error) {
+      console.error(error);
+
+      const errorMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content:
+          "Sorry, AetherBot could not respond right now.",
+        createdAt: Date.now()
+      };
+
+      updateActiveChatMessages([
+        ...updatedMessages,
+        errorMessage
+      ]);
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  function handleComposerKeyDown(event) {
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey
+    ) {
+      event.preventDefault();
+      handleSendMessage();
     }
   }
 
@@ -295,27 +431,68 @@ export default function App() {
               </button>
             </div>
           ) : (
-            <div className="chat-placeholder">
-              <h2>
-                {activeChat.title}
-              </h2>
+            <div className="conversation">
+              {activeChat.messages.length ===
+              0 ? (
+                <div className="conversation-empty">
+                  <h2>
+                    {activeChat.title}
+                  </h2>
 
-              <p>
-                Your conversation will appear
-                here.
-              </p>
+                  <p>
+                    Start the conversation.
+                  </p>
+                </div>
+              ) : (
+                <div className="message-list">
+                  {activeChat.messages.map(
+                    (message) => (
+                      <div
+                        key={message.id}
+                        className={`message-row ${
+                          message.role
+                        }`}
+                      >
+                        <div className="message-bubble">
+                          {message.content}
+                        </div>
+                      </div>
+                    )
+                  )}
+
+                  {isSending && (
+                    <div className="message-row assistant">
+                      <div className="message-bubble typing">
+                        AetherBot is thinking...
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
           <div className="message-composer">
             <textarea
+              value={messageText}
+              onChange={(event) =>
+                setMessageText(
+                  event.target.value
+                )
+              }
+              onKeyDown={
+                handleComposerKeyDown
+              }
               placeholder={
                 activeChat
                   ? "Message AetherBot..."
                   : "Start a new chat..."
               }
               rows="1"
-              disabled={!activeChat}
+              disabled={
+                !activeChat ||
+                isSending
+              }
             />
 
             <div className="composer-bottom">
@@ -332,7 +509,14 @@ export default function App() {
               <button
                 className="send-button"
                 title="Send"
-                disabled={!activeChat}
+                onClick={
+                  handleSendMessage
+                }
+                disabled={
+                  !activeChat ||
+                  !messageText.trim() ||
+                  isSending
+                }
               >
                 ↑
               </button>
