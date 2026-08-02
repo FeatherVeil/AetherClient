@@ -1,23 +1,20 @@
-const STORAGE_KEY = "aetherbot_chats";
+const CHATS_KEY = "aetherbot_chats";
 
 export function loadChats() {
   try {
-    const stored =
-      localStorage.getItem(
-        STORAGE_KEY
-      );
+    const saved = localStorage.getItem(CHATS_KEY);
 
-    if (!stored) {
+    if (!saved) {
       return [];
     }
 
-    const chats = JSON.parse(stored);
+    const parsed = JSON.parse(saved);
 
-    if (!Array.isArray(chats)) {
+    if (!Array.isArray(parsed)) {
       return [];
     }
 
-    return chats;
+    return parsed;
   } catch (error) {
     console.error(
       "AetherBot: unable to load chats.",
@@ -31,7 +28,7 @@ export function loadChats() {
 export function saveChats(chats) {
   try {
     localStorage.setItem(
-      STORAGE_KEY,
+      CHATS_KEY,
       JSON.stringify(chats)
     );
 
@@ -46,34 +43,35 @@ export function saveChats(chats) {
   }
 }
 
-export function deleteStoredChat(
-  chatId
-) {
+export function getChat(chatId) {
   const chats = loadChats();
 
-  const updated =
-    chats.filter(
-      (chat) =>
-        chat.id !== chatId
+  return (
+    chats.find(
+      (chat) => chat.id === chatId
+    ) || null
+  );
+}
+
+export function deleteChat(chatId) {
+  const chats = loadChats();
+
+  const updatedChats = chats.filter(
+    (chat) => chat.id !== chatId
+  );
+
+  saveChats(updatedChats);
+
+  return updatedChats;
+}
+
+export function clearAllChats() {
+  try {
+    localStorage.removeItem(CHATS_KEY);
+  } catch (error) {
+    console.error(
+      "AetherBot: unable to clear chats.",
+      error
     );
-
-  saveChats(updated);
-
-  return updated;
+  }
 }
-
-export function clearStoredChats() {
-  localStorage.removeItem(
-    STORAGE_KEY
-  );
-}
-
-export function exportChats() {
-  const chats = loadChats();
-
-  return JSON.stringify(
-    chats,
-    null,
-    2
-  );
-      }
