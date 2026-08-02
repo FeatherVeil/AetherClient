@@ -13,8 +13,7 @@ const MODELS = [
   { id: "gemini", name: "AetherBotPro" }
 ];
 
-const AETHERCODE_STORAGE_KEY =
-  "aetherbot_code_workspace";
+const AETHERCODE_STORAGE_KEY = "aetherbot_code_workspace";
 
 const DEFAULT_FILES = [
   {
@@ -147,11 +146,11 @@ function getFileExtension(name) {
 }
 
 function getLanguage(name) {
-  const extension =
-    getFileExtension(name);
+  const extension = getFileExtension(name);
 
   const languages = {
     js: "JavaScript",
+    mjs: "JavaScript",
     jsx: "React JSX",
     ts: "TypeScript",
     tsx: "TypeScript JSX",
@@ -172,8 +171,7 @@ function getLanguage(name) {
 }
 
 function runCodePreview(file) {
-  const extension =
-    getFileExtension(file.name);
+  const extension = getFileExtension(file.name);
 
   if (
     extension !== "js" &&
@@ -194,10 +192,7 @@ function runCodePreview(file) {
         logs.push(
           values
             .map((value) => {
-              if (
-                typeof value ===
-                "object"
-              ) {
+              if (typeof value === "object") {
                 try {
                   return JSON.stringify(
                     value,
@@ -249,8 +244,7 @@ function AetherCode({
 
   const [activeFileId, setActiveFileId] =
     useState(() => {
-      const initial =
-        loadCodeWorkspace();
+      const initial = loadCodeWorkspace();
 
       return initial[0]?.id || null;
     });
@@ -302,10 +296,9 @@ function AetherCode({
       return;
     }
 
-    const remaining =
-      files.filter(
-        (file) => file.id !== id
-      );
+    const remaining = files.filter(
+      (file) => file.id !== id
+    );
 
     setFiles(remaining);
 
@@ -389,12 +382,15 @@ function AetherCode({
     onAskAI(
       `I am working in AetherCode on the file "${activeFile.name}". Please help me with this code:\n\n${activeFile.content}`
     );
-
-    onClose();
   }
 
   return (
-    <div className="aethercode-overlay">
+    <div
+      className="aethercode-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="AetherCode"
+    >
       <div className="aethercode-window">
         <header className="aethercode-header">
           <div className="aethercode-brand">
@@ -404,6 +400,7 @@ function AetherCode({
 
             <div>
               <strong>AetherCode</strong>
+
               <span>
                 Coding workspace
               </span>
@@ -412,6 +409,7 @@ function AetherCode({
 
           <div className="aethercode-actions">
             <button
+              type="button"
               onClick={askAIForCode}
               title="Ask AetherBot for help"
             >
@@ -419,8 +417,10 @@ function AetherCode({
             </button>
 
             <button
+              type="button"
               onClick={onClose}
               title="Close AetherCode"
+              aria-label="Close AetherCode"
             >
               ×
             </button>
@@ -433,6 +433,7 @@ function AetherCode({
               <span>EXPLORER</span>
 
               <button
+                type="button"
                 onClick={createFile}
                 title="New file"
               >
@@ -445,8 +446,7 @@ function AetherCode({
                 <div
                   key={file.id}
                   className={`aethercode-file ${
-                    file.id ===
-                    activeFileId
+                    file.id === activeFileId
                       ? "active"
                       : ""
                   }`}
@@ -479,12 +479,14 @@ function AetherCode({
                           setRenamingFileId(
                             null
                           );
+                          setRenameValue("");
                         }
                       }}
                     />
                   ) : (
                     <>
                       <button
+                        type="button"
                         className="aethercode-file-select"
                         onClick={() =>
                           setActiveFileId(
@@ -509,6 +511,7 @@ function AetherCode({
                       </button>
 
                       <button
+                        type="button"
                         className="aethercode-file-delete"
                         onClick={() =>
                           deleteFile(
@@ -578,6 +581,7 @@ function AetherCode({
                     </span>
 
                     <button
+                      type="button"
                       onClick={
                         runCurrentFile
                       }
@@ -871,9 +875,27 @@ export default function App() {
     }
   }
 
+  function openSettings() {
+    setProjectMenuOpen(false);
+    setSettingsOpen(true);
+  }
+
+  function closeSettings() {
+    setSettingsOpen(false);
+  }
+
+  function openAetherCode() {
+    setProjectMenuOpen(false);
+    setSettingsOpen(false);
+    setAetherCodeOpen(true);
+  }
+
+  function closeAetherCode() {
+    setAetherCodeOpen(false);
+  }
+
   function askAIFromCode(message) {
     setAetherCodeOpen(false);
-
     setInput(message);
 
     setTimeout(() => {
@@ -1067,6 +1089,7 @@ export default function App() {
           {sidebarOpen && (
             <div>
               <h1>AetherBot</h1>
+
               <span>
                 AI workspace
               </span>
@@ -1077,6 +1100,7 @@ export default function App() {
         {sidebarOpen && (
           <>
             <button
+              type="button"
               className="new-chat-button"
               onClick={
                 createNewChat
@@ -1105,6 +1129,7 @@ export default function App() {
 
               {searchQuery && (
                 <button
+                  type="button"
                   onClick={() =>
                     setSearchQuery(
                       ""
@@ -1197,6 +1222,7 @@ export default function App() {
                     ) : (
                       <>
                         <button
+                          type="button"
                           className="chat-select"
                           onClick={() =>
                             selectChat(
@@ -1217,6 +1243,7 @@ export default function App() {
 
                         {sidebarOpen && (
                           <button
+                            type="button"
                             className="chat-delete"
                             onClick={() =>
                               deleteChat(
@@ -1240,10 +1267,9 @@ export default function App() {
         {sidebarOpen && (
           <div className="sidebar-bottom">
             <button
-              onClick={() =>
-                setSettingsOpen(
-                  true
-                )
+              type="button"
+              onClick={
+                openSettings
               }
             >
               ⚙
@@ -1251,10 +1277,9 @@ export default function App() {
             </button>
 
             <button
-              onClick={() =>
-                setAetherCodeOpen(
-                  true
-                )
+              type="button"
+              onClick={
+                openAetherCode
               }
             >
               ◇
@@ -1267,6 +1292,7 @@ export default function App() {
       <main className="aether-main">
         <header className="aether-header">
           <button
+            type="button"
             className="menu-button"
             onClick={() =>
               setSidebarOpen(
@@ -1274,6 +1300,7 @@ export default function App() {
               )
             }
             title="Toggle sidebar"
+            aria-label="Toggle sidebar"
           >
             ☰
           </button>
@@ -1285,9 +1312,21 @@ export default function App() {
           </div>
 
           <div className="header-actions">
+            <button
+              type="button"
+              onClick={
+                openAetherCode
+              }
+              title="Open AetherCode"
+              aria-label="Open AetherCode"
+            >
+              ◇
+            </button>
+
             {activeChat && (
               <div className="project-menu-wrapper">
                 <button
+                  type="button"
                   onClick={() =>
                     setProjectMenuOpen(
                       (open) =>
@@ -1315,6 +1354,7 @@ export default function App() {
                     </div>
 
                     <button
+                      type="button"
                       onClick={
                         toggleProject
                       }
@@ -1325,6 +1365,7 @@ export default function App() {
                     </button>
 
                     <button
+                      type="button"
                       onClick={
                         markProjectDone
                       }
@@ -1357,6 +1398,7 @@ export default function App() {
               </p>
 
               <button
+                type="button"
                 className="welcome-new-chat"
                 onClick={
                   createNewChat
@@ -1409,6 +1451,7 @@ export default function App() {
                       {activeChat.projectProgress <
                         100 && (
                         <button
+                          type="button"
                           onClick={
                             markProjectDone
                           }
@@ -1501,6 +1544,7 @@ export default function App() {
                 <div className="composer-bottom">
                   <div className="composer-tools">
                     <button
+                      type="button"
                       title="Attach"
                       disabled={
                         isLoading
@@ -1541,6 +1585,7 @@ export default function App() {
                   </div>
 
                   <button
+                    type="button"
                     className="send-button"
                     onClick={
                       sendMessage
@@ -1562,10 +1607,8 @@ export default function App() {
 
       {settingsOpen && (
         <Settings
-          onClose={() =>
-            setSettingsOpen(
-              false
-            )
+          onClose={
+            closeSettings
           }
           onSettingsChange={
             setSettings
@@ -1575,10 +1618,8 @@ export default function App() {
 
       {aetherCodeOpen && (
         <AetherCode
-          onClose={() =>
-            setAetherCodeOpen(
-              false
-            )
+          onClose={
+            closeAetherCode
           }
           onAskAI={
             askAIFromCode
