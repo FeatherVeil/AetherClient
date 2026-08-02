@@ -60,16 +60,12 @@ select:focus-visible {
   background: rgba(124, 140, 255, 0.3);
 }
 
-/* APP */
-
 .aether-app {
   display: flex;
   width: 100%;
   min-height: 100vh;
   background: #0b0d11;
 }
-
-/* SIDEBAR */
 
 .aether-sidebar {
   width: 270px;
@@ -134,8 +130,6 @@ select:focus-visible {
   font-size: 11px;
 }
 
-/* NEW CHAT */
-
 .new-chat-button {
   display: flex;
   align-items: center;
@@ -160,8 +154,6 @@ select:focus-visible {
 .new-chat-button span:first-child {
   font-size: 18px;
 }
-
-/* SIDEBAR CONTENT */
 
 .sidebar-section {
   flex: 1;
@@ -270,8 +262,6 @@ select:focus-visible {
   color: #f0f1f3;
 }
 
-/* SIDEBAR BOTTOM */
-
 .sidebar-bottom {
   display: flex;
   flex-direction: column;
@@ -303,8 +293,6 @@ select:focus-visible {
   color: #e8eaf0;
 }
 
-/* MAIN */
-
 .aether-main {
   display: flex;
   flex: 1;
@@ -315,9 +303,9 @@ select:focus-visible {
   flex-direction: column;
 }
 
-/* HEADER */
-
 .aether-header {
+  position: relative;
+
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -372,10 +360,76 @@ select:focus-visible {
 
 .header-actions {
   display: flex;
+  align-items: center;
   gap: 4px;
 }
 
-/* WORKSPACE */
+.project-menu-wrapper {
+  position: relative;
+}
+
+.project-menu {
+  position: absolute;
+  z-index: 50;
+
+  top: calc(100% + 8px);
+  right: 0;
+
+  width: 220px;
+
+  padding: 6px;
+
+  border: 1px solid #30343d;
+  border-radius: 10px;
+
+  background: #15181e;
+
+  box-shadow:
+    0 12px 35px rgba(
+      0,
+      0,
+      0,
+      0.35
+    );
+}
+
+.project-menu button {
+  display: block;
+
+  width: 100%;
+
+  padding: 9px 10px;
+
+  border-radius: 7px;
+
+  background: transparent;
+  color: #c6cbd4;
+
+  font-size: 12px;
+  text-align: left;
+}
+
+.project-menu button:hover {
+  background: #20242c;
+  color: #f0f2f5;
+}
+
+.project-menu-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 9px 10px;
+
+  color: #aeb4c0;
+
+  font-size: 12px;
+}
+
+.project-menu-status span {
+  color: #aeb7ff;
+  font-weight: 700;
+}
 
 .chat-workspace {
   position: relative;
@@ -442,8 +496,6 @@ select:focus-visible {
 .welcome-new-chat:hover {
   background: #20242c;
 }
-
-/* CONVERSATION */
 
 .conversation {
   width: min(780px, 100%);
@@ -523,11 +575,8 @@ select:focus-visible {
 
 .message-bubble.typing {
   color: #7d8491;
-
   font-style: italic;
 }
-
-/* PROJECT PROGRESS */
 
 .project-progress {
   width: min(780px, 100%);
@@ -620,8 +669,6 @@ select:focus-visible {
   background: #20242c;
 }
 
-/* COMPOSER */
-
 .message-composer {
   position: absolute;
   bottom: 22px;
@@ -636,7 +683,12 @@ select:focus-visible {
   background: #15181e;
 
   box-shadow:
-    0 10px 35px rgba(0, 0, 0, 0.25);
+    0 10px 35px rgba(
+      0,
+      0,
+      0,
+      0.25
+    );
 }
 
 .message-composer:focus-within {
@@ -695,8 +747,6 @@ select:focus-visible {
   color: #e8eaf0;
 }
 
-/* MODEL SELECTOR */
-
 .model-selector {
   max-width: 150px;
 
@@ -748,8 +798,6 @@ select:focus-visible {
 .send-button:hover:not(:disabled) {
   background: #ffffff;
 }
-
-/* MOBILE */
 
 @media (max-width: 700px) {
   .aether-sidebar {
