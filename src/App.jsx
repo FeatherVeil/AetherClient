@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import MessageContent from "./components/MessageContent";
 import { sendToAI } from "./services/ai";
+import { analyzeProjectMessage } from "./services/project";
 import "./styles.css";
 
 const STORAGE_KEY = "aetherbot_chats";
@@ -28,6 +29,9 @@ function createChat() {
     model: "auto",
     isProject: false,
     projectProgress: 0,
+    projectSetbacks: 0,
+    manuallyMarkedProject: false,
+    manuallyMarkedDone: false,
     createdAt: Date.now(),
     updatedAt: Date.now()
   };
@@ -35,8 +39,7 @@ function createChat() {
 
 function loadChats() {
   try {
-    const saved =
-      localStorage.getItem(STORAGE_KEY);
+    const saved = localStorage.getItem(STORAGE_KEY);
 
     if (!saved) {
       return [];
@@ -44,15 +47,9 @@ function loadChats() {
 
     const parsed = JSON.parse(saved);
 
-    return Array.isArray(parsed)
-      ? parsed
-      : [];
+    return Array.isArray(parsed) ? parsed : [];
   } catch (error) {
-    console.error(
-      "Unable to load chats:",
-      error
-    );
-
+    console.error("Unable to load chats:", error);
     return [];
   }
 }
@@ -70,15 +67,44 @@ function generateTitle(text) {
     return cleaned;
   }
 
-  return (
-    cleaned.slice(0, 40).trim() +
-    "..."
+  return `${cleaned.slice(0, 40).trim()}...`;
+}
+
+function calculateProjectProgress(
+  currentProgress,
+  analysis,
+  previousSetbacks
+) {
+  if (analysis.completed) {
+    return 100;
+  }
+
+  if (!analysis.isProjectSignal) {
+    return currentProgress;
+  }
+
+  let speed = 4;
+
+  const setbackCount =
+    previousSetbacks +
+    (analysis.setback ? 1 : 0);
+
+  if (setbackCount === 1) {
+    speed = 3;
+  } else if (setbackCount === 2) {
+    speed = 2;
+  } else if (setbackCount >= 3) {
+    speed = 1;
+  }
+
+  return Math.min(
+    99,
+    currentProgress + speed
   );
 }
 
 export default function App() {
-  const [chats, setChats] =
-    useState(loadChats);
+  const [chats, setChats] = useState(loadChats);
 
   const [activeChatId, setActiveChatId] =
     useState(null);
@@ -219,7 +245,9 @@ export default function App() {
     }
 
     updateActiveChat({
-      isProject: !activeChat.isProject
+      isProject: !activeChat.isProject,
+      manuallyMarkedProject:
+        !activeChat.isProject
     });
 
     setProjectMenuOpen(false);
@@ -232,7 +260,9 @@ export default function App() {
 
     updateActiveChat({
       isProject: true,
-      projectProgress: 100
+      projectProgress: 100,
+      manuallyMarkedProject: true,
+      manuallyMarkedDone: true
     });
 
     setProjectMenuOpen(false);
@@ -248,9 +278,7 @@ export default function App() {
     });
   }
 
-  function handleComposerKeyDown(
-    event
-  ) {
+  function handleComposerKeyDown(event) {
     if (
       event.key === "Enter" &&
       !event.shiftKey
@@ -270,15 +298,12 @@ export default function App() {
     setError("");
 
     let chatId = activeChatId;
-
-    let chatForRequest =
-      activeChat;
+    let chatForRequest = activeChat;
 
     if (!chatId) {
       const newChat = createChat();
 
       chatId = newChat.id;
-
       chatForRequest = newChat;
 
       setChats((current) => [
@@ -305,8 +330,38 @@ export default function App() {
     ];
 
     const selectedModel =
-      chatForRequest?.model ||
-      "auto";
+      chatForRequest?.model || "auto";
+
+    const projectAnalysis =
+      analyzeProjectMessage(text);
+
+    const previousProgress =
+      chatForRequest?.projectProgress || 0;
+
+    const previousSetbacks =
+      chatForRequest?.projectSetbacks || 0;
+
+    const automaticallyDetectedProject =
+      projectAnalysis.isProjectSignal;
+
+    const shouldBecomeProject =
+      chatForRequest?.manuallyMarkedProject ||
+      automaticallyDetectedProject ||
+      chatForRequest?.isProject;
+
+    const newSetbackCount =
+      projectAnalysis.setback
+        ? previousSetbacks + 1
+        : previousSetbacks;
+
+    const newProgress =
+      chatForRequest?.manuallyMarkedDone
+        ? 100
+        : calculateProjectProgress(
+            previousProgress,
+            projectAnalysis,
+            previousSetbacks
+          );
 
     setChats((current) =>
       current.map((chat) => {
@@ -316,14 +371,28 @@ export default function App() {
 
         return {
           ...chat,
+
           title:
             chat.messages.length === 0
               ? generateTitle(text)
               : chat.title,
+
           messages: [
             ...chat.messages,
             userMessage
           ],
+
+          isProject:
+            shouldBecomeProject,
+
+          projectProgress:
+            projectAnalysis.completed
+              ? 100
+              : newProgress,
+
+          projectSetbacks:
+            newSetbackCount,
+
           updatedAt: Date.now()
         };
       })
@@ -333,11 +402,10 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      const aiResponse =
-        await sendToAI(
-          selectedModel,
-          requestMessages
-        );
+      const aiResponse = await sendToAI(
+        selectedModel,
+        requestMessages
+      );
 
       const assistantMessage = {
         id: crypto.randomUUID(),
@@ -402,14 +470,10 @@ export default function App() {
         {sidebarOpen && (
           <button
             className="new-chat-button"
-            onClick={
-              createNewChat
-            }
+            onClick={createNewChat}
           >
             <span>＋</span>
-            <span>
-              New chat
-            </span>
+            <span>New chat</span>
           </button>
         )}
 
@@ -432,34 +496,25 @@ export default function App() {
                 <div
                   key={chat.id}
                   className={`chat-list-item ${
-                    chat.id ===
-                    activeChatId
+                    chat.id === activeChatId
                       ? "active"
                       : ""
                   }`}
                 >
-                  {editingChatId ===
-                  chat.id ? (
+                  {editingChatId === chat.id ? (
                     <input
                       autoFocus
                       className="chat-title-input"
-                      value={
-                        editingTitle
-                      }
+                      value={editingTitle}
                       onChange={(event) =>
                         setEditingTitle(
-                          event.target
-                            .value
+                          event.target.value
                         )
                       }
                       onBlur={() =>
-                        saveRename(
-                          chat.id
-                        )
+                        saveRename(chat.id)
                       }
-                      onKeyDown={(
-                        event
-                      ) => {
+                      onKeyDown={(event) => {
                         if (
                           event.key ===
                           "Enter"
@@ -489,9 +544,7 @@ export default function App() {
                           )
                         }
                         onDoubleClick={() =>
-                          startRename(
-                            chat
-                          )
+                          startRename(chat)
                         }
                         title="Double-click to rename"
                       >
@@ -525,16 +578,12 @@ export default function App() {
           <div className="sidebar-bottom">
             <button>
               ⚙
-              <span>
-                Settings
-              </span>
+              <span>Settings</span>
             </button>
 
             <button>
               ◇
-              <span>
-                AetherCode
-              </span>
+              <span>AetherCode</span>
             </button>
           </div>
         )}
@@ -566,8 +615,7 @@ export default function App() {
                 <button
                   onClick={() =>
                     setProjectMenuOpen(
-                      (open) =>
-                        !open
+                      (open) => !open
                     )
                   }
                   title="Project options"
@@ -633,9 +681,7 @@ export default function App() {
 
               <button
                 className="welcome-new-chat"
-                onClick={
-                  createNewChat
-                }
+                onClick={createNewChat}
               >
                 Start a new chat
               </button>
@@ -674,8 +720,10 @@ export default function App() {
 
                   <div className="project-progress-footer">
                     <span>
-                      Progress is tracked
-                      separately from chat
+                      {activeChat.projectSetbacks >
+                      0
+                        ? "Progress continues at a reduced rate after setbacks."
+                        : "AetherBot is tracking this project."}
                     </span>
 
                     {activeChat.projectProgress <
@@ -693,8 +741,8 @@ export default function App() {
               )}
 
               <div className="conversation">
-                {activeChat.messages
-                  .length === 0 ? (
+                {activeChat.messages.length ===
+                0 ? (
                   <div className="conversation-empty">
                     <h2>
                       {activeChat.title}
@@ -710,9 +758,7 @@ export default function App() {
                     {activeChat.messages.map(
                       (message) => (
                         <div
-                          key={
-                            message.id
-                          }
+                          key={message.id}
                           className={`message-row ${message.role}`}
                         >
                           <div className="message-bubble">
@@ -745,22 +791,17 @@ export default function App() {
               {error && (
                 <div
                   style={{
-                    position:
-                      "absolute",
+                    position: "absolute",
                     bottom: "112px",
-                    width: "min(760px, calc(100% - 40px))",
-                    padding:
-                      "9px 12px",
+                    width:
+                      "min(760px, calc(100% - 40px))",
+                    padding: "9px 12px",
                     border:
                       "1px solid #49353a",
-                    borderRadius:
-                      "9px",
-                    background:
-                      "#201619",
-                    color:
-                      "#e3aeb5",
-                    fontSize:
-                      "12px"
+                    borderRadius: "9px",
+                    background: "#201619",
+                    color: "#e3aeb5",
+                    fontSize: "12px"
                   }}
                 >
                   {error}
@@ -780,47 +821,31 @@ export default function App() {
                   }
                   placeholder="Message AetherBot..."
                   rows={1}
-                  disabled={
-                    isLoading
-                  }
+                  disabled={isLoading}
                 />
 
                 <div className="composer-bottom">
                   <div className="composer-tools">
                     <button
                       title="Attach"
-                      disabled={
-                        isLoading
-                      }
+                      disabled={isLoading}
                     >
                       ＋
                     </button>
 
                     <select
                       className="model-selector"
-                      value={
-                        activeChat.model
-                      }
-                      onChange={
-                        changeModel
-                      }
-                      disabled={
-                        isLoading
-                      }
+                      value={activeChat.model}
+                      onChange={changeModel}
+                      disabled={isLoading}
                     >
                       {MODELS.map(
                         (model) => (
                           <option
-                            key={
-                              model.id
-                            }
-                            value={
-                              model.id
-                            }
+                            key={model.id}
+                            value={model.id}
                           >
-                            {
-                              model.name
-                            }
+                            {model.name}
                           </option>
                         )
                       )}
@@ -829,9 +854,7 @@ export default function App() {
 
                   <button
                     className="send-button"
-                    onClick={
-                      sendMessage
-                    }
+                    onClick={sendMessage}
                     disabled={
                       !input.trim() ||
                       isLoading
