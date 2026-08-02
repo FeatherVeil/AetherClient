@@ -19,6 +19,12 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] =
     useState(true);
 
+  const [editingChatId, setEditingChatId] =
+    useState(null);
+
+  const [editingTitle, setEditingTitle] =
+    useState("");
+
   useEffect(() => {
     saveChats(chats);
   }, [chats]);
@@ -41,6 +47,57 @@ export default function App() {
 
     if (activeChatId === chatId) {
       setActiveChatId(null);
+    }
+
+    if (editingChatId === chatId) {
+      setEditingChatId(null);
+      setEditingTitle("");
+    }
+  }
+
+  function startEditingChat(chat) {
+    setEditingChatId(chat.id);
+    setEditingTitle(chat.title);
+  }
+
+  function cancelEditing() {
+    setEditingChatId(null);
+    setEditingTitle("");
+  }
+
+  function saveChatTitle(chatId) {
+    const trimmedTitle =
+      editingTitle.trim();
+
+    if (!trimmedTitle) {
+      cancelEditing();
+      return;
+    }
+
+    setChats((currentChats) =>
+      updateChat(
+        currentChats,
+        chatId,
+        {
+          title: trimmedTitle
+        }
+      )
+    );
+
+    cancelEditing();
+  }
+
+  function handleTitleKeyDown(
+    event,
+    chatId
+  ) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      saveChatTitle(chatId);
+    }
+
+    if (event.key === "Escape") {
+      cancelEditing();
     }
   }
 
@@ -101,16 +158,47 @@ export default function App() {
                         : ""
                     }`}
                   >
-                    <button
-                      className="chat-select"
-                      onClick={() =>
-                        setActiveChatId(
-                          chat.id
-                        )
-                      }
-                    >
-                      {chat.title}
-                    </button>
+                    {editingChatId ===
+                    chat.id ? (
+                      <input
+                        className="chat-title-input"
+                        value={editingTitle}
+                        onChange={(event) =>
+                          setEditingTitle(
+                            event.target.value
+                          )
+                        }
+                        onKeyDown={(event) =>
+                          handleTitleKeyDown(
+                            event,
+                            chat.id
+                          )
+                        }
+                        onBlur={() =>
+                          saveChatTitle(
+                            chat.id
+                          )
+                        }
+                        autoFocus
+                      />
+                    ) : (
+                      <button
+                        className="chat-select"
+                        onClick={() =>
+                          setActiveChatId(
+                            chat.id
+                          )
+                        }
+                        onDoubleClick={() =>
+                          startEditingChat(
+                            chat
+                          )
+                        }
+                        title="Double-click to rename"
+                      >
+                        {chat.title}
+                      </button>
+                    )}
 
                     <button
                       className="chat-delete"
