@@ -1,52 +1,101 @@
-export async function sendToAI(
-  model,
-  messages
-) {
-  if (!Array.isArray(messages) || !messages.length) {
-    throw new Error(
-      "No messages were provided."
-    );
-  }
+const MODEL_ENDPOINTS = {
+  groq: "/api/groq",
+  gemini: "/api/gemini"
+};
 
-  const response = await fetch(
-    "/.netlify/functions/ai",
-    {
-      method: "POST",
+function cleanMessages(messages) {
+  return messages
+    .filter(
+      (message) =>
+        message &&
+        (message.role === "user" ||
+          message.role === "assistant")
+    )
+    .map((message) => ({
+      role: message.role,
+      content: String(message.content || "")
+    }));
+}
 
-      headers: {
-        "Content-Type":
-          "application/json"
-      },
+async function requestModel(endpoint, messages) {
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      messages: cleanMessages(messages)
+    })
+  });
 
-      body: JSON.stringify({
-        model,
-        messages
-      })
-    }
-  );
-
-  let data;
+  let data = {};
 
   try {
     data = await response.json();
   } catch {
-    throw new Error(
-      "The AI server returned an invalid response."
-    );
+    data = {};
   }
 
   if (!response.ok) {
     throw new Error(
       data?.error ||
-        "The AI request failed."
+        `AI request failed with status ${response.status}.`
     );
   }
 
-  if (!data?.response) {
+  if (!data?.content) {
     throw new Error(
       "The AI returned an empty response."
     );
   }
 
-  return data.response;
+  return data.content;
+}
+
+export async function sendToAI(
+  model,
+  messages
+) {
+  if (!Array.isArray(messages)) {
+    throw new Error(
+      "Invalid message history."
+    );
+  }
+
+  if (model === "groq") {
+    return requestModel(
+      MODEL_ENDPOINTS.groq,
+      messages
+    );
+  }
+
+  if (model === "gemini") {
+    return requestModel(
+      MODEL_ENDPOINTS.gemini,
+      messages
+    );
+  }
+
+  if (model === "auto") {
+    try {
+      return await requestModel(
+        MODEL_ENDPOINTS.groq,
+        messages
+      );
+    } catch (groqError) {
+      console.warn(
+        "AetherBot Auto: Groq failed. Trying Gemini.",
+        groqError
+      );
+
+      return requestModel(
+        MODEL_ENDPOINTS.gemini,
+        messages
+      );
+    }
+  }
+
+  throw new Error(
+    "Unknown AI model selected."
+  );
 }
