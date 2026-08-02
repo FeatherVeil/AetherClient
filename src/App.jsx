@@ -8,6 +8,8 @@ import {
   deleteChat
 } from "./storage/chats.js";
 
+import ModelSelector from "./components/ModelSelector.jsx";
+
 export default function App() {
   const [chats, setChats] = useState(
     () => loadChats()
@@ -31,6 +33,9 @@ export default function App() {
   const [isSending, setIsSending] =
     useState(false);
 
+  const [selectedModel, setSelectedModel] =
+    useState("aetherbot");
+
   useEffect(() => {
     saveChats(chats);
   }, [chats]);
@@ -44,6 +49,15 @@ export default function App() {
     ]);
 
     setActiveChatId(newChat.id);
+    setSelectedModel(newChat.model);
+  }
+
+  function handleSelectChat(chat) {
+    setActiveChatId(chat.id);
+
+    setSelectedModel(
+      chat.model || "aetherbot"
+    );
   }
 
   function handleDeleteChat(chatId) {
@@ -105,6 +119,24 @@ export default function App() {
     if (event.key === "Escape") {
       cancelEditing();
     }
+  }
+
+  function handleModelChange(modelId) {
+    setSelectedModel(modelId);
+
+    if (!activeChatId) {
+      return;
+    }
+
+    setChats((currentChats) =>
+      updateChat(
+        currentChats,
+        activeChatId,
+        {
+          model: modelId
+        }
+      )
+    );
   }
 
   function updateActiveChatMessages(
@@ -172,6 +204,8 @@ export default function App() {
           },
 
           body: JSON.stringify({
+            model: selectedModel,
+
             messages:
               updatedMessages.map(
                 (message) => ({
@@ -321,8 +355,8 @@ export default function App() {
                       <button
                         className="chat-select"
                         onClick={() =>
-                          setActiveChatId(
-                            chat.id
+                          handleSelectChat(
+                            chat
                           )
                         }
                         onDoubleClick={() =>
@@ -501,9 +535,14 @@ export default function App() {
                   ＋
                 </button>
 
-                <button title="AI model">
-                  AetherBot ▾
-                </button>
+                <ModelSelector
+                  selectedModel={
+                    selectedModel
+                  }
+                  onChange={
+                    handleModelChange
+                  }
+                />
               </div>
 
               <button
