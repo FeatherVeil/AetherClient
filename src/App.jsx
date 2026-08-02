@@ -13,6 +13,26 @@ const MODELS = [
   { id: "gemini", name: "AetherBotPro" }
 ];
 
+const AETHERCODE_STORAGE_KEY =
+  "aetherbot_code_workspace";
+
+const DEFAULT_FILES = [
+  {
+    id: crypto.randomUUID(),
+    name: "main.js",
+    type: "file",
+    content:
+      '// Welcome to AetherCode\n\nconsole.log("Hello from AetherCode!");'
+  },
+  {
+    id: crypto.randomUUID(),
+    name: "README.md",
+    type: "file",
+    content:
+      "# AetherCode\n\nYour browser-based coding workspace."
+  }
+];
+
 function createChat() {
   return {
     id: crypto.randomUUID(),
@@ -74,32 +94,567 @@ function calculateProjectProgress(
 
 function sortChats(chats) {
   return [...chats].sort(
-    (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)
+    (a, b) =>
+      (b.updatedAt || 0) -
+      (a.updatedAt || 0)
+  );
+}
+
+function loadCodeWorkspace() {
+  try {
+    const saved = localStorage.getItem(
+      AETHERCODE_STORAGE_KEY
+    );
+
+    if (!saved) {
+      return DEFAULT_FILES;
+    }
+
+    const parsed = JSON.parse(saved);
+
+    if (!Array.isArray(parsed)) {
+      return DEFAULT_FILES;
+    }
+
+    return parsed;
+  } catch {
+    return DEFAULT_FILES;
+  }
+}
+
+function saveCodeWorkspace(files) {
+  try {
+    localStorage.setItem(
+      AETHERCODE_STORAGE_KEY,
+      JSON.stringify(files)
+    );
+  } catch (error) {
+    console.error(
+      "Unable to save AetherCode workspace:",
+      error
+    );
+  }
+}
+
+function getFileExtension(name) {
+  const parts = name.split(".");
+
+  if (parts.length < 2) {
+    return "";
+  }
+
+  return parts.pop().toLowerCase();
+}
+
+function getLanguage(name) {
+  const extension =
+    getFileExtension(name);
+
+  const languages = {
+    js: "JavaScript",
+    jsx: "React JSX",
+    ts: "TypeScript",
+    tsx: "TypeScript JSX",
+    css: "CSS",
+    html: "HTML",
+    json: "JSON",
+    md: "Markdown",
+    py: "Python",
+    java: "Java",
+    cpp: "C++",
+    c: "C",
+    cs: "C#",
+    xml: "XML",
+    txt: "Text"
+  };
+
+  return languages[extension] || "Text";
+}
+
+function runCodePreview(file) {
+  const extension =
+    getFileExtension(file.name);
+
+  if (
+    extension !== "js" &&
+    extension !== "mjs"
+  ) {
+    return {
+      success: false,
+      message:
+        "AetherCode currently previews JavaScript files only."
+    };
+  }
+
+  const logs = [];
+
+  try {
+    const safeConsole = {
+      log: (...values) => {
+        logs.push(
+          values
+            .map((value) => {
+              if (
+                typeof value ===
+                "object"
+              ) {
+                try {
+                  return JSON.stringify(
+                    value,
+                    null,
+                    2
+                  );
+                } catch {
+                  return String(value);
+                }
+              }
+
+              return String(value);
+            })
+            .join(" ")
+        );
+      }
+    };
+
+    const execute = new Function(
+      "console",
+      `"use strict";\n${file.content}`
+    );
+
+    execute(safeConsole);
+
+    return {
+      success: true,
+      message:
+        logs.length > 0
+          ? logs.join("\n")
+          : "Code executed successfully with no console output."
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error?.message ||
+        "Code execution failed."
+    };
+  }
+}
+
+function AetherCode({
+  onClose,
+  onAskAI
+}) {
+  const [files, setFiles] =
+    useState(loadCodeWorkspace);
+
+  const [activeFileId, setActiveFileId] =
+    useState(() => {
+      const initial =
+        loadCodeWorkspace();
+
+      return initial[0]?.id || null;
+    });
+
+  const [output, setOutput] = useState(
+    "Run JavaScript to see the output here."
+  );
+
+  const [renamingFileId, setRenamingFileId] =
+    useState(null);
+
+  const [renameValue, setRenameValue] =
+    useState("");
+
+  const activeFile = useMemo(
+    () =>
+      files.find(
+        (file) =>
+          file.id === activeFileId
+      ) || null,
+    [files, activeFileId]
+  );
+
+  useEffect(() => {
+    saveCodeWorkspace(files);
+  }, [files]);
+
+  function createFile() {
+    const name =
+      `file-${files.length + 1}.js`;
+
+    const file = {
+      id: crypto.randomUUID(),
+      name,
+      type: "file",
+      content: ""
+    };
+
+    setFiles((current) => [
+      ...current,
+      file
+    ]);
+
+    setActiveFileId(file.id);
+  }
+
+  function deleteFile(id) {
+    if (files.length <= 1) {
+      return;
+    }
+
+    const remaining =
+      files.filter(
+        (file) => file.id !== id
+      );
+
+    setFiles(remaining);
+
+    if (id === activeFileId) {
+      setActiveFileId(
+        remaining[0]?.id || null
+      );
+    }
+  }
+
+  function updateFileContent(content) {
+    if (!activeFileId) {
+      return;
+    }
+
+    setFiles((current) =>
+      current.map((file) =>
+        file.id === activeFileId
+          ? {
+              ...file,
+              content
+            }
+          : file
+      )
+    );
+  }
+
+  function beginRename(file) {
+    setRenamingFileId(file.id);
+    setRenameValue(file.name);
+  }
+
+  function finishRename() {
+    if (!renamingFileId) {
+      return;
+    }
+
+    const cleanName =
+      renameValue.trim();
+
+    if (!cleanName) {
+      setRenamingFileId(null);
+      return;
+    }
+
+    setFiles((current) =>
+      current.map((file) =>
+        file.id === renamingFileId
+          ? {
+              ...file,
+              name: cleanName
+            }
+          : file
+      )
+    );
+
+    setRenamingFileId(null);
+    setRenameValue("");
+  }
+
+  function runCurrentFile() {
+    if (!activeFile) {
+      return;
+    }
+
+    const result =
+      runCodePreview(activeFile);
+
+    setOutput(
+      result.success
+        ? result.message
+        : `Error: ${result.message}`
+    );
+  }
+
+  function askAIForCode() {
+    if (!activeFile) {
+      return;
+    }
+
+    onAskAI(
+      `I am working in AetherCode on the file "${activeFile.name}". Please help me with this code:\n\n${activeFile.content}`
+    );
+
+    onClose();
+  }
+
+  return (
+    <div className="aethercode-overlay">
+      <div className="aethercode-window">
+        <header className="aethercode-header">
+          <div className="aethercode-brand">
+            <div className="aethercode-logo">
+              A
+            </div>
+
+            <div>
+              <strong>AetherCode</strong>
+              <span>
+                Coding workspace
+              </span>
+            </div>
+          </div>
+
+          <div className="aethercode-actions">
+            <button
+              onClick={askAIForCode}
+              title="Ask AetherBot for help"
+            >
+              Ask AI
+            </button>
+
+            <button
+              onClick={onClose}
+              title="Close AetherCode"
+            >
+              ×
+            </button>
+          </div>
+        </header>
+
+        <div className="aethercode-body">
+          <aside className="aethercode-files">
+            <div className="aethercode-files-header">
+              <span>EXPLORER</span>
+
+              <button
+                onClick={createFile}
+                title="New file"
+              >
+                +
+              </button>
+            </div>
+
+            <div className="aethercode-file-list">
+              {files.map((file) => (
+                <div
+                  key={file.id}
+                  className={`aethercode-file ${
+                    file.id ===
+                    activeFileId
+                      ? "active"
+                      : ""
+                  }`}
+                >
+                  {renamingFileId ===
+                  file.id ? (
+                    <input
+                      autoFocus
+                      value={renameValue}
+                      onChange={(event) =>
+                        setRenameValue(
+                          event.target.value
+                        )
+                      }
+                      onBlur={
+                        finishRename
+                      }
+                      onKeyDown={(event) => {
+                        if (
+                          event.key ===
+                          "Enter"
+                        ) {
+                          finishRename();
+                        }
+
+                        if (
+                          event.key ===
+                          "Escape"
+                        ) {
+                          setRenamingFileId(
+                            null
+                          );
+                        }
+                      }}
+                    />
+                  ) : (
+                    <>
+                      <button
+                        className="aethercode-file-select"
+                        onClick={() =>
+                          setActiveFileId(
+                            file.id
+                          )
+                        }
+                        onDoubleClick={() =>
+                          beginRename(
+                            file
+                          )
+                        }
+                      >
+                        <span>
+                          {getFileExtension(
+                            file.name
+                          ) === "js"
+                            ? "JS"
+                            : "•"}
+                        </span>
+
+                        {file.name}
+                      </button>
+
+                      <button
+                        className="aethercode-file-delete"
+                        onClick={() =>
+                          deleteFile(
+                            file.id
+                          )
+                        }
+                        title="Delete file"
+                      >
+                        ×
+                      </button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          </aside>
+
+          <section className="aethercode-editor-area">
+            {activeFile ? (
+              <>
+                <div className="aethercode-tab">
+                  <span>
+                    {activeFile.name}
+                  </span>
+
+                  <small>
+                    {getLanguage(
+                      activeFile.name
+                    )}
+                  </small>
+                </div>
+
+                <div className="aethercode-editor">
+                  <div className="aethercode-line-numbers">
+                    {activeFile.content
+                      .split("\n")
+                      .map(
+                        (_, index) => (
+                          <span
+                            key={index}
+                          >
+                            {index + 1}
+                          </span>
+                        )
+                      )}
+                  </div>
+
+                  <textarea
+                    value={
+                      activeFile.content
+                    }
+                    onChange={(event) =>
+                      updateFileContent(
+                        event.target
+                          .value
+                      )
+                    }
+                    spellCheck={false}
+                    aria-label="Code editor"
+                  />
+                </div>
+
+                <div className="aethercode-output">
+                  <div className="aethercode-output-header">
+                    <span>
+                      OUTPUT
+                    </span>
+
+                    <button
+                      onClick={
+                        runCurrentFile
+                      }
+                    >
+                      Run
+                    </button>
+                  </div>
+
+                  <pre>{output}</pre>
+                </div>
+              </>
+            ) : (
+              <div className="aethercode-empty">
+                Create a file to begin.
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
+    </div>
   );
 }
 
 export default function App() {
-  const [chats, setChats] = useState(() => sortChats(loadChats()));
-  const [activeChatId, setActiveChatId] = useState(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [input, setInput] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [projectMenuOpen, setProjectMenuOpen] = useState(false);
-  const [editingChatId, setEditingChatId] = useState(null);
-  const [editingTitle, setEditingTitle] = useState("");
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settings, setSettings] = useState(loadSettings);
+  const [chats, setChats] =
+    useState(() =>
+      sortChats(loadChats())
+    );
+
+  const [activeChatId, setActiveChatId] =
+    useState(null);
+
+  const [sidebarOpen, setSidebarOpen] =
+    useState(true);
+
+  const [input, setInput] =
+    useState("");
+
+  const [searchQuery, setSearchQuery] =
+    useState("");
+
+  const [isLoading, setIsLoading] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
+
+  const [projectMenuOpen, setProjectMenuOpen] =
+    useState(false);
+
+  const [editingChatId, setEditingChatId] =
+    useState(null);
+
+  const [editingTitle, setEditingTitle] =
+    useState("");
+
+  const [settingsOpen, setSettingsOpen] =
+    useState(false);
+
+  const [aetherCodeOpen, setAetherCodeOpen] =
+    useState(false);
+
+  const [settings, setSettings] =
+    useState(loadSettings);
 
   const activeChat = useMemo(
     () =>
-      chats.find((chat) => chat.id === activeChatId) || null,
+      chats.find(
+        (chat) =>
+          chat.id === activeChatId
+      ) || null,
     [chats, activeChatId]
   );
 
   const filteredChats = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+    const query =
+      searchQuery.trim().toLowerCase();
 
     if (!query) {
       return chats;
@@ -107,16 +662,21 @@ export default function App() {
 
     return chats.filter((chat) => {
       const titleMatch =
-        chat.title?.toLowerCase().includes(query);
+        chat.title
+          ?.toLowerCase()
+          .includes(query);
 
       const messageMatch =
-        chat.messages?.some((message) =>
-          message.content
-            ?.toLowerCase()
-            .includes(query)
+        chat.messages?.some(
+          (message) =>
+            message.content
+              ?.toLowerCase()
+              .includes(query)
         );
 
-      return titleMatch || messageMatch;
+      return (
+        titleMatch || messageMatch
+      );
     });
   }, [chats, searchQuery]);
 
@@ -133,12 +693,12 @@ export default function App() {
 
     document.documentElement.classList.toggle(
       "compact-mode",
-      settings.compactMode
+      Boolean(settings.compactMode)
     );
 
     document.documentElement.classList.toggle(
       "reduce-motion",
-      !settings.animations
+      !Boolean(settings.animations)
     );
   }, [settings]);
 
@@ -150,7 +710,10 @@ export default function App() {
     const chat = createChat();
 
     setChats((current) =>
-      sortChats([chat, ...current])
+      sortChats([
+        chat,
+        ...current
+      ])
     );
 
     setActiveChatId(chat.id);
@@ -177,7 +740,9 @@ export default function App() {
     }
 
     setChats((current) =>
-      current.filter((chat) => chat.id !== id)
+      current.filter(
+        (chat) => chat.id !== id
+      )
     );
 
     if (activeChatId === id) {
@@ -195,7 +760,9 @@ export default function App() {
   }
 
   function saveRename(id) {
-    const title = editingTitle.trim() || "New chat";
+    const title =
+      editingTitle.trim() ||
+      "New chat";
 
     setChats((current) =>
       sortChats(
@@ -204,7 +771,8 @@ export default function App() {
             ? {
                 ...chat,
                 title,
-                updatedAt: Date.now()
+                updatedAt:
+                  Date.now()
               }
             : chat
         )
@@ -215,7 +783,10 @@ export default function App() {
     setEditingTitle("");
   }
 
-  function updateChat(chatId, changes) {
+  function updateChat(
+    chatId,
+    changes
+  ) {
     setChats((current) =>
       sortChats(
         current.map((chat) =>
@@ -223,7 +794,8 @@ export default function App() {
             ? {
                 ...chat,
                 ...changes,
-                updatedAt: Date.now()
+                updatedAt:
+                  Date.now()
               }
             : chat
         )
@@ -231,12 +803,17 @@ export default function App() {
     );
   }
 
-  function updateActiveChat(changes) {
+  function updateActiveChat(
+    changes
+  ) {
     if (!activeChatId) {
       return;
     }
 
-    updateChat(activeChatId, changes);
+    updateChat(
+      activeChatId,
+      changes
+    );
   }
 
   function toggleProject() {
@@ -244,11 +821,13 @@ export default function App() {
       return;
     }
 
-    const nextValue = !activeChat.isProject;
+    const nextValue =
+      !activeChat.isProject;
 
     updateActiveChat({
       isProject: nextValue,
-      manuallyMarkedProject: nextValue
+      manuallyMarkedProject:
+        nextValue
     });
 
     setProjectMenuOpen(false);
@@ -279,7 +858,9 @@ export default function App() {
     });
   }
 
-  function handleComposerKeyDown(event) {
+  function handleComposerKeyDown(
+    event
+  ) {
     if (
       event.key === "Enter" &&
       !event.shiftKey &&
@@ -288,6 +869,23 @@ export default function App() {
       event.preventDefault();
       sendMessage();
     }
+  }
+
+  function askAIFromCode(message) {
+    setAetherCodeOpen(false);
+
+    setInput(message);
+
+    setTimeout(() => {
+      const composer =
+        document.querySelector(
+          ".message-composer textarea"
+        );
+
+      if (composer) {
+        composer.focus();
+      }
+    }, 50);
   }
 
   async function sendMessage() {
@@ -309,7 +907,10 @@ export default function App() {
       chatForRequest = newChat;
 
       setChats((current) =>
-        sortChats([newChat, ...current])
+        sortChats([
+          newChat,
+          ...current
+        ])
       );
 
       setActiveChatId(chatId);
@@ -323,7 +924,8 @@ export default function App() {
     };
 
     const existingMessages =
-      chatForRequest?.messages || [];
+      chatForRequest?.messages ||
+      [];
 
     const requestMessages = [
       ...existingMessages,
@@ -331,16 +933,19 @@ export default function App() {
     ];
 
     const selectedModel =
-      chatForRequest?.model || "auto";
+      chatForRequest?.model ||
+      "auto";
 
     const projectAnalysis =
       analyzeProjectMessage(text);
 
     const previousProgress =
-      chatForRequest?.projectProgress || 0;
+      chatForRequest?.projectProgress ||
+      0;
 
     const previousSetbacks =
-      chatForRequest?.projectSetbacks || 0;
+      chatForRequest?.projectSetbacks ||
+      0;
 
     const automaticallyDetectedProject =
       projectAnalysis.isProjectSignal;
@@ -367,19 +972,22 @@ export default function App() {
     const updatedChat = {
       ...chatForRequest,
       title:
-        chatForRequest.messages.length === 0
+        chatForRequest.messages
+          .length === 0
           ? generateTitle(text)
           : chatForRequest.title,
       messages: [
         ...chatForRequest.messages,
         userMessage
       ],
-      isProject: shouldBecomeProject,
+      isProject:
+        shouldBecomeProject,
       projectProgress:
         projectAnalysis.completed
           ? 100
           : newProgress,
-      projectSetbacks: newSetbackCount,
+      projectSetbacks:
+        newSetbackCount,
       updatedAt: Date.now()
     };
 
@@ -397,10 +1005,11 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      const aiResponse = await sendToAI(
-        selectedModel,
-        requestMessages
-      );
+      const aiResponse =
+        await sendToAI(
+          selectedModel,
+          requestMessages
+        );
 
       const assistantMessage = {
         id: crypto.randomUUID(),
@@ -419,7 +1028,8 @@ export default function App() {
                     ...chat.messages,
                     assistantMessage
                   ],
-                  updatedAt: Date.now()
+                  updatedAt:
+                    Date.now()
                 }
               : chat
           )
@@ -444,16 +1054,22 @@ export default function App() {
     <div className="aether-app">
       <aside
         className={`aether-sidebar ${
-          sidebarOpen ? "open" : "closed"
+          sidebarOpen
+            ? "open"
+            : "closed"
         }`}
       >
         <div className="sidebar-header">
-          <div className="aether-logo">A</div>
+          <div className="aether-logo">
+            A
+          </div>
 
           {sidebarOpen && (
             <div>
               <h1>AetherBot</h1>
-              <span>AI workspace</span>
+              <span>
+                AI workspace
+              </span>
             </div>
           )}
         </div>
@@ -462,7 +1078,9 @@ export default function App() {
           <>
             <button
               className="new-chat-button"
-              onClick={createNewChat}
+              onClick={
+                createNewChat
+              }
             >
               <span>＋</span>
               <span>New chat</span>
@@ -472,10 +1090,13 @@ export default function App() {
               <span>⌕</span>
 
               <input
-                value={searchQuery}
+                value={
+                  searchQuery
+                }
                 onChange={(event) =>
                   setSearchQuery(
-                    event.target.value
+                    event.target
+                      .value
                   )
                 }
                 placeholder="Search chats"
@@ -485,7 +1106,9 @@ export default function App() {
               {searchQuery && (
                 <button
                   onClick={() =>
-                    setSearchQuery("")
+                    setSearchQuery(
+                      ""
+                    )
                   }
                   title="Clear search"
                 >
@@ -505,7 +1128,8 @@ export default function App() {
             </div>
           )}
 
-          {filteredChats.length === 0 ? (
+          {filteredChats.length ===
+          0 ? (
             sidebarOpen && (
               <div className="empty-chat-list">
                 {searchQuery
@@ -515,74 +1139,100 @@ export default function App() {
             )
           ) : (
             <div className="chat-list">
-              {filteredChats.map((chat) => (
-                <div
-                  key={chat.id}
-                  className={`chat-list-item ${
-                    chat.id === activeChatId
-                      ? "active"
-                      : ""
-                  }`}
-                >
-                  {editingChatId === chat.id ? (
-                    <input
-                      autoFocus
-                      className="chat-title-input"
-                      value={editingTitle}
-                      onChange={(event) =>
-                        setEditingTitle(
-                          event.target.value
-                        )
-                      }
-                      onBlur={() =>
-                        saveRename(chat.id)
-                      }
-                      onKeyDown={(event) => {
-                        if (
-                          event.key === "Enter"
-                        ) {
-                          saveRename(chat.id);
+              {filteredChats.map(
+                (chat) => (
+                  <div
+                    key={chat.id}
+                    className={`chat-list-item ${
+                      chat.id ===
+                      activeChatId
+                        ? "active"
+                        : ""
+                    }`}
+                  >
+                    {editingChatId ===
+                    chat.id ? (
+                      <input
+                        autoFocus
+                        className="chat-title-input"
+                        value={
+                          editingTitle
                         }
-
-                        if (
-                          event.key === "Escape"
-                        ) {
-                          setEditingChatId(null);
+                        onChange={(
+                          event
+                        ) =>
+                          setEditingTitle(
+                            event
+                              .target
+                              .value
+                          )
                         }
-                      }}
-                    />
-                  ) : (
-                    <>
-                      <button
-                        className="chat-select"
-                        onClick={() =>
-                          selectChat(chat.id)
+                        onBlur={() =>
+                          saveRename(
+                            chat.id
+                          )
                         }
-                        onDoubleClick={() =>
-                          startRename(chat)
-                        }
-                        title="Double-click to rename"
-                      >
-                        {sidebarOpen
-                          ? chat.title
-                          : "•"}
-                      </button>
-
-                      {sidebarOpen && (
-                        <button
-                          className="chat-delete"
-                          onClick={() =>
-                            deleteChat(chat.id)
+                        onKeyDown={(
+                          event
+                        ) => {
+                          if (
+                            event.key ===
+                            "Enter"
+                          ) {
+                            saveRename(
+                              chat.id
+                            );
                           }
-                          title="Delete chat"
+
+                          if (
+                            event.key ===
+                            "Escape"
+                          ) {
+                            setEditingChatId(
+                              null
+                            );
+                          }
+                        }}
+                      />
+                    ) : (
+                      <>
+                        <button
+                          className="chat-select"
+                          onClick={() =>
+                            selectChat(
+                              chat.id
+                            )
+                          }
+                          onDoubleClick={() =>
+                            startRename(
+                              chat
+                            )
+                          }
+                          title="Double-click to rename"
                         >
-                          ×
+                          {sidebarOpen
+                            ? chat.title
+                            : "•"}
                         </button>
-                      )}
-                    </>
-                  )}
-                </div>
-              ))}
+
+                        {sidebarOpen && (
+                          <button
+                            className="chat-delete"
+                            onClick={() =>
+                              deleteChat(
+                                chat.id
+                              )
+                            }
+                            title="Delete chat"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )
+              )}
             </div>
           )}
         </div>
@@ -591,14 +1241,22 @@ export default function App() {
           <div className="sidebar-bottom">
             <button
               onClick={() =>
-                setSettingsOpen(true)
+                setSettingsOpen(
+                  true
+                )
               }
             >
               ⚙
               <span>Settings</span>
             </button>
 
-            <button>
+            <button
+              onClick={() =>
+                setAetherCodeOpen(
+                  true
+                )
+              }
+            >
               ◇
               <span>AetherCode</span>
             </button>
@@ -632,7 +1290,8 @@ export default function App() {
                 <button
                   onClick={() =>
                     setProjectMenuOpen(
-                      (open) => !open
+                      (open) =>
+                        !open
                     )
                   }
                   title="Project options"
@@ -643,7 +1302,10 @@ export default function App() {
                 {projectMenuOpen && (
                   <div className="project-menu">
                     <div className="project-menu-status">
-                      <span>Project</span>
+                      <span>
+                        Project
+                      </span>
+
                       <span>
                         {
                           activeChat.projectProgress
@@ -679,21 +1341,26 @@ export default function App() {
         <section className="chat-workspace">
           {!activeChat ? (
             <div className="welcome-screen">
-              <div className="welcome-logo">A</div>
+              <div className="welcome-logo">
+                A
+              </div>
 
               <h2>
-                How can AetherBot help?
+                How can AetherBot
+                help?
               </h2>
 
               <p>
-                Start a conversation and
-                your chats will be saved
-                automatically.
+                Start a conversation
+                and your chats will
+                be saved automatically.
               </p>
 
               <button
                 className="welcome-new-chat"
-                onClick={createNewChat}
+                onClick={
+                  createNewChat
+                }
               >
                 Start a new chat
               </button>
@@ -754,14 +1421,18 @@ export default function App() {
                 )}
 
               <div className="conversation">
-                {activeChat.messages.length === 0 ? (
+                {activeChat.messages
+                  .length === 0 ? (
                   <div className="conversation-empty">
                     <h2>
-                      {activeChat.title}
+                      {
+                        activeChat.title
+                      }
                     </h2>
 
                     <p>
-                      Send a message to begin.
+                      Send a message
+                      to begin.
                     </p>
                   </div>
                 ) : (
@@ -769,7 +1440,9 @@ export default function App() {
                     {activeChat.messages.map(
                       (message) => (
                         <div
-                          key={message.id}
+                          key={
+                            message.id
+                          }
                           className={`message-row ${message.role}`}
                         >
                           <div className="message-bubble">
@@ -790,7 +1463,8 @@ export default function App() {
                       <div className="message-row assistant">
                         <div className="message-bubble">
                           <div className="typing">
-                            AetherBot is thinking...
+                            AetherBot is
+                            thinking...
                           </div>
                         </div>
                       </div>
@@ -810,7 +1484,8 @@ export default function App() {
                   value={input}
                   onChange={(event) =>
                     setInput(
-                      event.target.value
+                      event.target
+                        .value
                     )
                   }
                   onKeyDown={
@@ -818,38 +1493,58 @@ export default function App() {
                   }
                   placeholder="Message AetherBot..."
                   rows={1}
-                  disabled={isLoading}
+                  disabled={
+                    isLoading
+                  }
                 />
 
                 <div className="composer-bottom">
                   <div className="composer-tools">
                     <button
                       title="Attach"
-                      disabled={isLoading}
+                      disabled={
+                        isLoading
+                      }
                     >
                       ＋
                     </button>
 
                     <select
                       className="model-selector"
-                      value={activeChat.model}
-                      onChange={changeModel}
-                      disabled={isLoading}
+                      value={
+                        activeChat.model
+                      }
+                      onChange={
+                        changeModel
+                      }
+                      disabled={
+                        isLoading
+                      }
                     >
-                      {MODELS.map((model) => (
-                        <option
-                          key={model.id}
-                          value={model.id}
-                        >
-                          {model.name}
-                        </option>
-                      ))}
+                      {MODELS.map(
+                        (model) => (
+                          <option
+                            key={
+                              model.id
+                            }
+                            value={
+                              model.id
+                            }
+                          >
+                            {
+                              model.name
+                            }
+                          </option>
+                        )
+                      )}
                     </select>
                   </div>
 
                   <button
                     className="send-button"
-                    onClick={sendMessage}
+                    onClick={
+                      sendMessage
+                    }
                     disabled={
                       !input.trim() ||
                       isLoading
@@ -868,10 +1563,25 @@ export default function App() {
       {settingsOpen && (
         <Settings
           onClose={() =>
-            setSettingsOpen(false)
+            setSettingsOpen(
+              false
+            )
           }
           onSettingsChange={
             setSettings
+          }
+        />
+      )}
+
+      {aetherCodeOpen && (
+        <AetherCode
+          onClose={() =>
+            setAetherCodeOpen(
+              false
+            )
+          }
+          onAskAI={
+            askAIFromCode
           }
         />
       )}
