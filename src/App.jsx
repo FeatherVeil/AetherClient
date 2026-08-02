@@ -5,7 +5,8 @@ import {
   saveChats,
   createChat,
   updateChat,
-  deleteChat
+  deleteChat,
+  generateChatTitle
 } from "./storage/chats.js";
 
 import ModelSelector from "./components/ModelSelector.jsx";
@@ -49,7 +50,9 @@ export default function App() {
     ]);
 
     setActiveChatId(newChat.id);
-    setSelectedModel(newChat.model);
+    setSelectedModel(
+      newChat.model
+    );
   }
 
   function handleSelectChat(chat) {
@@ -113,6 +116,7 @@ export default function App() {
   ) {
     if (event.key === "Enter") {
       event.preventDefault();
+
       saveChatTitle(chatId);
     }
 
@@ -142,7 +146,9 @@ export default function App() {
   function updateActiveChatMessages(
     messages
   ) {
-    if (!activeChatId) return;
+    if (!activeChatId) {
+      return;
+    }
 
     setChats((currentChats) =>
       updateChat(
@@ -156,7 +162,8 @@ export default function App() {
   }
 
   async function handleSendMessage() {
-    const text = messageText.trim();
+    const text =
+      messageText.trim();
 
     if (
       !text ||
@@ -166,12 +173,15 @@ export default function App() {
       return;
     }
 
-    const activeChat = chats.find(
-      (chat) =>
-        chat.id === activeChatId
-    );
+    const activeChat =
+      chats.find(
+        (chat) =>
+          chat.id === activeChatId
+      );
 
-    if (!activeChat) return;
+    if (!activeChat) {
+      return;
+    }
 
     const userMessage = {
       id: crypto.randomUUID(),
@@ -185,8 +195,28 @@ export default function App() {
       userMessage
     ];
 
-    updateActiveChatMessages(
-      updatedMessages
+    /*
+     * Automatically create a useful title
+     * from the first message.
+     */
+    const shouldGenerateTitle =
+      activeChat.messages.length === 0 &&
+      activeChat.title === "New chat";
+
+    const newTitle =
+      shouldGenerateTitle
+        ? generateChatTitle(text)
+        : activeChat.title;
+
+    setChats((currentChats) =>
+      updateChat(
+        currentChats,
+        activeChatId,
+        {
+          messages: updatedMessages,
+          title: newTitle
+        }
+      )
     );
 
     setMessageText("");
@@ -230,10 +260,13 @@ export default function App() {
 
       const assistantMessage = {
         id: crypto.randomUUID(),
+
         role: "assistant",
+
         content:
           data.message ||
           "I didn't receive a response.",
+
         createdAt: Date.now()
       };
 
@@ -246,9 +279,12 @@ export default function App() {
 
       const errorMessage = {
         id: crypto.randomUUID(),
+
         role: "assistant",
+
         content:
           "Sorry, AetherBot could not respond right now.",
+
         createdAt: Date.now()
       };
 
@@ -261,26 +297,32 @@ export default function App() {
     }
   }
 
-  function handleComposerKeyDown(event) {
+  function handleComposerKeyDown(
+    event
+  ) {
     if (
       event.key === "Enter" &&
       !event.shiftKey
     ) {
       event.preventDefault();
+
       handleSendMessage();
     }
   }
 
   const activeChat =
     chats.find(
-      (chat) => chat.id === activeChatId
+      (chat) =>
+        chat.id === activeChatId
     ) || null;
 
   return (
     <div className="aether-app">
       <aside
         className={`aether-sidebar ${
-          sidebarOpen ? "open" : "closed"
+          sidebarOpen
+            ? "open"
+            : "closed"
         }`}
       >
         <div className="sidebar-header">
@@ -290,8 +332,13 @@ export default function App() {
 
           {sidebarOpen && (
             <div>
-              <h1>AetherClient</h1>
-              <span>AI workspace</span>
+              <h1>
+                AetherClient
+              </h1>
+
+              <span>
+                AI workspace
+              </span>
             </div>
           )}
         </div>
@@ -303,7 +350,9 @@ export default function App() {
           <span>＋</span>
 
           {sidebarOpen && (
-            <span>New chat</span>
+            <span>
+              New chat
+            </span>
           )}
         </button>
 
@@ -319,70 +368,80 @@ export default function App() {
               </div>
             ) : (
               <div className="chat-list">
-                {chats.map((chat) => (
-                  <div
-                    key={chat.id}
-                    className={`chat-list-item ${
-                      activeChatId === chat.id
-                        ? "active"
-                        : ""
-                    }`}
-                  >
-                    {editingChatId ===
-                    chat.id ? (
-                      <input
-                        className="chat-title-input"
-                        value={editingTitle}
-                        onChange={(event) =>
-                          setEditingTitle(
-                            event.target.value
-                          )
-                        }
-                        onKeyDown={(event) =>
-                          handleTitleKeyDown(
-                            event,
-                            chat.id
-                          )
-                        }
-                        onBlur={() =>
-                          saveChatTitle(
-                            chat.id
-                          )
-                        }
-                        autoFocus
-                      />
-                    ) : (
-                      <button
-                        className="chat-select"
-                        onClick={() =>
-                          handleSelectChat(
-                            chat
-                          )
-                        }
-                        onDoubleClick={() =>
-                          startEditingChat(
-                            chat
-                          )
-                        }
-                        title="Double-click to rename"
-                      >
-                        {chat.title}
-                      </button>
-                    )}
-
-                    <button
-                      className="chat-delete"
-                      onClick={() =>
-                        handleDeleteChat(
-                          chat.id
-                        )
-                      }
-                      title="Delete chat"
+                {chats.map(
+                  (chat) => (
+                    <div
+                      key={chat.id}
+                      className={`chat-list-item ${
+                        activeChatId ===
+                        chat.id
+                          ? "active"
+                          : ""
+                      }`}
                     >
-                      ×
-                    </button>
-                  </div>
-                ))}
+                      {editingChatId ===
+                      chat.id ? (
+                        <input
+                          className="chat-title-input"
+                          value={
+                            editingTitle
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            setEditingTitle(
+                              event.target
+                                .value
+                            )
+                          }
+                          onKeyDown={(
+                            event
+                          ) =>
+                            handleTitleKeyDown(
+                              event,
+                              chat.id
+                            )
+                          }
+                          onBlur={() =>
+                            saveChatTitle(
+                              chat.id
+                            )
+                          }
+                          autoFocus
+                        />
+                      ) : (
+                        <button
+                          className="chat-select"
+                          onClick={() =>
+                            handleSelectChat(
+                              chat
+                            )
+                          }
+                          onDoubleClick={() =>
+                            startEditingChat(
+                              chat
+                            )
+                          }
+                          title="Double-click to rename"
+                        >
+                          {chat.title}
+                        </button>
+                      )}
+
+                      <button
+                        className="chat-delete"
+                        onClick={() =>
+                          handleDeleteChat(
+                            chat.id
+                          )
+                        }
+                        title="Delete chat"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )
+                )}
               </div>
             )}
           </div>
@@ -391,15 +450,21 @@ export default function App() {
         <div className="sidebar-bottom">
           <button>
             ⚙
+
             {sidebarOpen && (
-              <span>Settings</span>
+              <span>
+                Settings
+              </span>
             )}
           </button>
 
           <button>
             💻
+
             {sidebarOpen && (
-              <span>AetherCode</span>
+              <span>
+                AetherCode
+              </span>
             )}
           </button>
         </div>
@@ -411,7 +476,8 @@ export default function App() {
             className="menu-button"
             onClick={() =>
               setSidebarOpen(
-                (open) => !open
+                (open) =>
+                  !open
               )
             }
             title="Toggle sidebar"
@@ -434,7 +500,9 @@ export default function App() {
 
             <button
               title="New chat"
-              onClick={handleNewChat}
+              onClick={
+                handleNewChat
+              }
             >
               ＋
             </button>
@@ -453,21 +521,23 @@ export default function App() {
               </h2>
 
               <p>
-                Start a conversation or create
-                a project.
+                Start a conversation or
+                create a project.
               </p>
 
               <button
                 className="welcome-new-chat"
-                onClick={handleNewChat}
+                onClick={
+                  handleNewChat
+                }
               >
                 ＋ Start a new chat
               </button>
             </div>
           ) : (
             <div className="conversation">
-              {activeChat.messages.length ===
-              0 ? (
+              {activeChat.messages
+                .length === 0 ? (
                 <div className="conversation-empty">
                   <h2>
                     {activeChat.title}
@@ -482,13 +552,17 @@ export default function App() {
                   {activeChat.messages.map(
                     (message) => (
                       <div
-                        key={message.id}
+                        key={
+                          message.id
+                        }
                         className={`message-row ${
                           message.role
                         }`}
                       >
                         <div className="message-bubble">
-                          {message.content}
+                          {
+                            message.content
+                          }
                         </div>
                       </div>
                     )
@@ -509,7 +583,9 @@ export default function App() {
           <div className="message-composer">
             <textarea
               value={messageText}
-              onChange={(event) =>
+              onChange={(
+                event
+              ) =>
                 setMessageText(
                   event.target.value
                 )
