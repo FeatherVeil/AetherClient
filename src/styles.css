@@ -84,6 +84,10 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: default;
+}
+
 .aether-app {
   display: flex;
   width: 100%;
@@ -100,8 +104,7 @@ button {
   flex-direction: column;
   background: var(--sidebar);
   border-right: 1px solid var(--border);
-  transition:
-    width 0.2s ease;
+  transition: width 0.2s ease;
 }
 
 .aether-sidebar.closed {
@@ -145,7 +148,7 @@ button {
   display: flex;
   align-items: center;
   gap: 9px;
-  margin: 4px 12px 16px;
+  margin: 4px 12px 10px;
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 9px;
@@ -156,6 +159,55 @@ button {
 
 .new-chat-button:hover {
   filter: brightness(1.08);
+}
+
+/* Chat search */
+
+.chat-search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 12px 14px;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.chat-search > span {
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.chat-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.chat-search input::placeholder {
+  color: var(--muted);
+}
+
+.chat-search button {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  line-height: 18px;
+}
+
+.chat-search button:hover {
+  background: var(--panel-hover);
+  color: var(--text);
 }
 
 .sidebar-section {
@@ -237,6 +289,8 @@ button {
   color: var(--text);
 }
 
+/* Sidebar bottom */
+
 .sidebar-bottom {
   display: flex;
   flex-direction: column;
@@ -261,6 +315,8 @@ button {
   background: var(--panel-hover);
   color: var(--text);
 }
+
+/* Main */
 
 .aether-main {
   min-width: 0;
@@ -344,6 +400,8 @@ button {
   padding: 9px;
   text-align: left;
 }
+
+/* Chat workspace */
 
 .chat-workspace {
   position: relative;
@@ -448,6 +506,8 @@ button {
   font-size: 13px;
 }
 
+/* Projects */
+
 .project-progress {
   width: min(800px, calc(100% - 40px));
   margin: 16px auto 0;
@@ -511,6 +571,8 @@ button {
   color: var(--text);
   font-size: 10px;
 }
+
+/* Composer */
 
 .message-composer {
   position: absolute;
@@ -605,7 +667,6 @@ button {
 
 .send-button:disabled {
   opacity: 0.35;
-  cursor: default;
 }
 
 .aether-error {
@@ -898,8 +959,7 @@ button {
   height: 18px;
   border-radius: 50%;
   background: var(--muted);
-  transition:
-    transform 0.15s ease;
+  transition: transform 0.15s ease;
 }
 
 .settings-toggle.enabled {
@@ -921,6 +981,8 @@ button {
   font-size: 11px;
 }
 
+/* Modes */
+
 .compact-mode .message-row {
   margin-bottom: 14px;
 }
@@ -935,6 +997,8 @@ button {
   transition: none !important;
   animation: none !important;
 }
+
+/* Mobile */
 
 @media (max-width: 700px) {
   .aether-sidebar {
@@ -978,4 +1042,4 @@ button {
   .settings-panel {
     max-height: 95vh;
   }
-}
+    }
