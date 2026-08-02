@@ -9,7 +9,13 @@ import {
   generateChatTitle
 } from "./storage/chats.js";
 
+import {
+  updateProject,
+  markProjectComplete
+} from "./project/projectEngine.js";
+
 import ModelSelector from "./components/ModelSelector.jsx";
+import ProjectProgress from "./components/ProjectProgress.jsx";
 
 export default function App() {
   const [chats, setChats] = useState(
@@ -50,6 +56,7 @@ export default function App() {
     ]);
 
     setActiveChatId(newChat.id);
+
     setSelectedModel(
       newChat.model
     );
@@ -65,7 +72,10 @@ export default function App() {
 
   function handleDeleteChat(chatId) {
     setChats((currentChats) =>
-      deleteChat(currentChats, chatId)
+      deleteChat(
+        currentChats,
+        chatId
+      )
     );
 
     if (activeChatId === chatId) {
@@ -125,7 +135,9 @@ export default function App() {
     }
   }
 
-  function handleModelChange(modelId) {
+  function handleModelChange(
+    modelId
+  ) {
     setSelectedModel(modelId);
 
     if (!activeChatId) {
@@ -139,6 +151,22 @@ export default function App() {
         {
           model: modelId
         }
+      )
+    );
+  }
+
+  function updateActiveChat(
+    changes
+  ) {
+    if (!activeChatId) {
+      return;
+    }
+
+    setChats((currentChats) =>
+      updateChat(
+        currentChats,
+        activeChatId,
+        changes
       )
     );
   }
@@ -159,6 +187,22 @@ export default function App() {
         }
       )
     );
+  }
+
+  function handleMarkProjectDone() {
+    if (!activeChat) {
+      return;
+    }
+
+    const completedProject =
+      markProjectComplete(
+        activeChat.project
+      );
+
+    updateActiveChat({
+      project:
+        completedProject
+    });
   }
 
   async function handleSendMessage() {
@@ -185,8 +229,11 @@ export default function App() {
 
     const userMessage = {
       id: crypto.randomUUID(),
+
       role: "user",
+
       content: text,
+
       createdAt: Date.now()
     };
 
@@ -195,10 +242,6 @@ export default function App() {
       userMessage
     ];
 
-    /*
-     * Automatically create a useful title
-     * from the first message.
-     */
     const shouldGenerateTitle =
       activeChat.messages.length === 0 &&
       activeChat.title === "New chat";
@@ -208,13 +251,29 @@ export default function App() {
         ? generateChatTitle(text)
         : activeChat.title;
 
+    /*
+     * Analyze the conversation after
+     * the new user message.
+     */
+    const updatedProject =
+      updateProject(
+        activeChat.project,
+        updatedMessages
+      );
+
     setChats((currentChats) =>
       updateChat(
         currentChats,
         activeChatId,
         {
-          messages: updatedMessages,
-          title: newTitle
+          messages:
+            updatedMessages,
+
+          title:
+            newTitle,
+
+          project:
+            updatedProject
         }
       )
     );
@@ -234,12 +293,15 @@ export default function App() {
           },
 
           body: JSON.stringify({
-            model: selectedModel,
+            model:
+              selectedModel,
 
             messages:
               updatedMessages.map(
                 (message) => ({
-                  role: message.role,
+                  role:
+                    message.role,
+
                   content:
                     message.content
                 })
@@ -270,10 +332,29 @@ export default function App() {
         createdAt: Date.now()
       };
 
-      updateActiveChatMessages([
+      const finalMessages = [
         ...updatedMessages,
         assistantMessage
-      ]);
+      ];
+
+      /*
+       * Analyze again after the AI response.
+       * This gives the project system more
+       * context.
+       */
+      const finalProject =
+        updateProject(
+          updatedProject,
+          finalMessages
+        );
+
+      updateActiveChat({
+        messages:
+          finalMessages,
+
+        project:
+          finalProject
+      });
     } catch (error) {
       console.error(error);
 
@@ -288,10 +369,24 @@ export default function App() {
         createdAt: Date.now()
       };
 
-      updateActiveChatMessages([
+      const finalMessages = [
         ...updatedMessages,
         errorMessage
-      ]);
+      ];
+
+      const finalProject =
+        updateProject(
+          updatedProject,
+          finalMessages
+        );
+
+      updateActiveChat({
+        messages:
+          finalMessages,
+
+        project:
+          finalProject
+      });
     } finally {
       setIsSending(false);
     }
@@ -345,7 +440,9 @@ export default function App() {
 
         <button
           className="new-chat-button"
-          onClick={handleNewChat}
+          onClick={
+            handleNewChat
+          }
         >
           <span>＋</span>
 
@@ -371,7 +468,9 @@ export default function App() {
                 {chats.map(
                   (chat) => (
                     <div
-                      key={chat.id}
+                      key={
+                        chat.id
+                      }
                       className={`chat-list-item ${
                         activeChatId ===
                         chat.id
@@ -390,7 +489,8 @@ export default function App() {
                             event
                           ) =>
                             setEditingTitle(
-                              event.target
+                              event
+                                .target
                                 .value
                             )
                           }
@@ -424,7 +524,21 @@ export default function App() {
                           }
                           title="Double-click to rename"
                         >
-                          {chat.title}
+                          {chat.project
+                            ?.enabled && (
+                            <span
+                              style={{
+                                marginRight:
+                                  "6px"
+                              }}
+                            >
+                              🚀
+                            </span>
+                          )}
+
+                          {
+                            chat.title
+                          }
                         </button>
                       )}
 
@@ -535,59 +649,77 @@ export default function App() {
               </button>
             </div>
           ) : (
-            <div className="conversation">
-              {activeChat.messages
-                .length === 0 ? (
-                <div className="conversation-empty">
-                  <h2>
-                    {activeChat.title}
-                  </h2>
+            <>
+              <ProjectProgress
+                project={
+                  activeChat.project
+                }
+                onMarkComplete={
+                  handleMarkProjectDone
+                }
+              />
 
-                  <p>
-                    Start the conversation.
-                  </p>
-                </div>
-              ) : (
-                <div className="message-list">
-                  {activeChat.messages.map(
-                    (message) => (
-                      <div
-                        key={
-                          message.id
-                        }
-                        className={`message-row ${
-                          message.role
-                        }`}
-                      >
-                        <div className="message-bubble">
-                          {
-                            message.content
+              <div className="conversation">
+                {activeChat.messages
+                  .length === 0 ? (
+                  <div className="conversation-empty">
+                    <h2>
+                      {
+                        activeChat.title
+                      }
+                    </h2>
+
+                    <p>
+                      Start the conversation.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="message-list">
+                    {activeChat.messages.map(
+                      (
+                        message
+                      ) => (
+                        <div
+                          key={
+                            message.id
                           }
+                          className={`message-row ${
+                            message.role
+                          }`}
+                        >
+                          <div className="message-bubble">
+                            {
+                              message.content
+                            }
+                          </div>
+                        </div>
+                      )
+                    )}
+
+                    {isSending && (
+                      <div className="message-row assistant">
+                        <div className="message-bubble typing">
+                          AetherBot is thinking...
                         </div>
                       </div>
-                    )
-                  )}
-
-                  {isSending && (
-                    <div className="message-row assistant">
-                      <div className="message-bubble typing">
-                        AetherBot is thinking...
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
           )}
 
           <div className="message-composer">
             <textarea
-              value={messageText}
+              value={
+                messageText
+              }
               onChange={(
                 event
               ) =>
                 setMessageText(
-                  event.target.value
+                  event.target
+                    .value
                 )
               }
               onKeyDown={
