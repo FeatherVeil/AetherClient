@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import MessageContent from "./components/MessageContent";
 import { sendToAI } from "./services/ai";
-import { analyzeProjectMessage } from "./services/project";
+import {
+  analyzeProjectMessage
+} from "./services/project";
+import {
+  loadChats,
+  saveChats
+} from "./services/chatStorage";
 import "./styles.css";
-
-const STORAGE_KEY = "aetherbot_chats";
 
 const MODELS = [
   {
@@ -37,23 +41,6 @@ function createChat() {
   };
 }
 
-function loadChats() {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-
-    if (!saved) {
-      return [];
-    }
-
-    const parsed = JSON.parse(saved);
-
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (error) {
-    console.error("Unable to load chats:", error);
-    return [];
-  }
-}
-
 function generateTitle(text) {
   const cleaned = text
     .replace(/\s+/g, " ")
@@ -63,11 +50,11 @@ function generateTitle(text) {
     return "New chat";
   }
 
-  if (cleaned.length <= 40) {
+  if (cleaned.length <= 45) {
     return cleaned;
   }
 
-  return `${cleaned.slice(0, 40).trim()}...`;
+  return `${cleaned.slice(0, 45).trim()}...`;
 }
 
 function calculateProjectProgress(
@@ -103,8 +90,18 @@ function calculateProjectProgress(
   );
 }
 
+function sortChats(chats) {
+  return [...chats].sort(
+    (a, b) =>
+      (b.updatedAt || 0) -
+      (a.updatedAt || 0)
+  );
+}
+
 export default function App() {
-  const [chats, setChats] = useState(loadChats);
+  const [chats, setChats] = useState(
+    () => sortChats(loadChats())
+  );
 
   const [activeChatId, setActiveChatId] =
     useState(null);
@@ -140,10 +137,7 @@ export default function App() {
   );
 
   useEffect(() => {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(chats)
-    );
+    saveChats(chats);
   }, [chats]);
 
   function createNewChat() {
@@ -153,10 +147,12 @@ export default function App() {
 
     const chat = createChat();
 
-    setChats((current) => [
-      chat,
-      ...current
-    ]);
+    setChats((current) =>
+      sortChats([
+        chat,
+        ...current
+      ])
+    );
 
     setActiveChatId(chat.id);
     setInput("");
@@ -182,7 +178,8 @@ export default function App() {
 
     setChats((current) =>
       current.filter(
-        (chat) => chat.id !== id
+        (chat) =>
+          chat.id !== id
       )
     );
 
@@ -206,14 +203,17 @@ export default function App() {
       "New chat";
 
     setChats((current) =>
-      current.map((chat) =>
-        chat.id === id
-          ? {
-              ...chat,
-              title,
-              updatedAt: Date.now()
-            }
-          : chat
+      sortChats(
+        current.map((chat) =>
+          chat.id === id
+            ? {
+                ...chat,
+                title,
+                updatedAt:
+                  Date.now()
+              }
+            : chat
+        )
       )
     );
 
@@ -221,21 +221,36 @@ export default function App() {
     setEditingTitle("");
   }
 
-  function updateActiveChat(changes) {
+  function updateChat(
+    chatId,
+    changes
+  ) {
+    setChats((current) =>
+      sortChats(
+        current.map((chat) =>
+          chat.id === chatId
+            ? {
+                ...chat,
+                ...changes,
+                updatedAt:
+                  Date.now()
+              }
+            : chat
+        )
+      )
+    );
+  }
+
+  function updateActiveChat(
+    changes
+  ) {
     if (!activeChatId) {
       return;
     }
 
-    setChats((current) =>
-      current.map((chat) =>
-        chat.id === activeChatId
-          ? {
-              ...chat,
-              ...changes,
-              updatedAt: Date.now()
-            }
-          : chat
-      )
+    updateChat(
+      activeChatId,
+      changes
     );
   }
 
@@ -244,10 +259,13 @@ export default function App() {
       return;
     }
 
+    const nextValue =
+      !activeChat.isProject;
+
     updateActiveChat({
-      isProject: !activeChat.isProject,
+      isProject: nextValue,
       manuallyMarkedProject:
-        !activeChat.isProject
+        nextValue
     });
 
     setProjectMenuOpen(false);
@@ -278,7 +296,9 @@ export default function App() {
     });
   }
 
-  function handleComposerKeyDown(event) {
+  function handleComposerKeyDown(
+    event
+  ) {
     if (
       event.key === "Enter" &&
       !event.shiftKey
@@ -298,18 +318,24 @@ export default function App() {
     setError("");
 
     let chatId = activeChatId;
-    let chatForRequest = activeChat;
+
+    let chatForRequest =
+      activeChat;
 
     if (!chatId) {
-      const newChat = createChat();
+      const newChat =
+        createChat();
 
       chatId = newChat.id;
-      chatForRequest = newChat;
+      chatForRequest =
+        newChat;
 
-      setChats((current) => [
-        newChat,
-        ...current
-      ]);
+      setChats((current) =>
+        sortChats([
+          newChat,
+          ...current
+        ])
+      );
 
       setActiveChatId(chatId);
     }
@@ -322,7 +348,8 @@ export default function App() {
     };
 
     const existingMessages =
-      chatForRequest?.messages || [];
+      chatForRequest?.messages ||
+      [];
 
     const requestMessages = [
       ...existingMessages,
@@ -330,16 +357,21 @@ export default function App() {
     ];
 
     const selectedModel =
-      chatForRequest?.model || "auto";
+      chatForRequest?.model ||
+      "auto";
 
     const projectAnalysis =
-      analyzeProjectMessage(text);
+      analyzeProjectMessage(
+        text
+      );
 
     const previousProgress =
-      chatForRequest?.projectProgress || 0;
+      chatForRequest?.projectProgress ||
+      0;
 
     const previousSetbacks =
-      chatForRequest?.projectSetbacks || 0;
+      chatForRequest?.projectSetbacks ||
+      0;
 
     const automaticallyDetectedProject =
       projectAnalysis.isProjectSignal;
@@ -363,49 +395,53 @@ export default function App() {
             previousSetbacks
           );
 
+    const updatedChat = {
+      ...chatForRequest,
+
+      title:
+        chatForRequest.messages
+          .length === 0
+          ? generateTitle(text)
+          : chatForRequest.title,
+
+      messages: [
+        ...chatForRequest.messages,
+        userMessage
+      ],
+
+      isProject:
+        shouldBecomeProject,
+
+      projectProgress:
+        projectAnalysis.completed
+          ? 100
+          : newProgress,
+
+      projectSetbacks:
+        newSetbackCount,
+
+      updatedAt: Date.now()
+    };
+
     setChats((current) =>
-      current.map((chat) => {
-        if (chat.id !== chatId) {
-          return chat;
-        }
-
-        return {
-          ...chat,
-
-          title:
-            chat.messages.length === 0
-              ? generateTitle(text)
-              : chat.title,
-
-          messages: [
-            ...chat.messages,
-            userMessage
-          ],
-
-          isProject:
-            shouldBecomeProject,
-
-          projectProgress:
-            projectAnalysis.completed
-              ? 100
-              : newProgress,
-
-          projectSetbacks:
-            newSetbackCount,
-
-          updatedAt: Date.now()
-        };
-      })
+      sortChats(
+        current.map((chat) =>
+          chat.id === chatId
+            ? updatedChat
+            : chat
+        )
+      )
     );
 
     setInput("");
     setIsLoading(true);
 
     try {
-      const aiResponse = await sendToAI(
-        selectedModel,
-        requestMessages
-      );
+      const aiResponse =
+        await sendToAI(
+          selectedModel,
+          requestMessages
+        );
 
       const assistantMessage = {
         id: crypto.randomUUID(),
@@ -415,17 +451,20 @@ export default function App() {
       };
 
       setChats((current) =>
-        current.map((chat) =>
-          chat.id === chatId
-            ? {
-                ...chat,
-                messages: [
-                  ...chat.messages,
-                  assistantMessage
-                ],
-                updatedAt: Date.now()
-              }
-            : chat
+        sortChats(
+          current.map((chat) =>
+            chat.id === chatId
+              ? {
+                  ...chat,
+                  messages: [
+                    ...chat.messages,
+                    assistantMessage
+                  ],
+                  updatedAt:
+                    Date.now()
+                }
+              : chat
+          )
         )
       );
     } catch (requestError) {
@@ -460,6 +499,7 @@ export default function App() {
           {sidebarOpen && (
             <div>
               <h1>AetherBot</h1>
+
               <span>
                 AI workspace
               </span>
@@ -492,84 +532,99 @@ export default function App() {
             )
           ) : (
             <div className="chat-list">
-              {chats.map((chat) => (
-                <div
-                  key={chat.id}
-                  className={`chat-list-item ${
-                    chat.id === activeChatId
-                      ? "active"
-                      : ""
-                  }`}
-                >
-                  {editingChatId === chat.id ? (
-                    <input
-                      autoFocus
-                      className="chat-title-input"
-                      value={editingTitle}
-                      onChange={(event) =>
-                        setEditingTitle(
-                          event.target.value
-                        )
-                      }
-                      onBlur={() =>
-                        saveRename(chat.id)
-                      }
-                      onKeyDown={(event) => {
-                        if (
-                          event.key ===
-                          "Enter"
-                        ) {
+              {chats.map(
+                (chat) => (
+                  <div
+                    key={chat.id}
+                    className={`chat-list-item ${
+                      chat.id ===
+                      activeChatId
+                        ? "active"
+                        : ""
+                    }`}
+                  >
+                    {editingChatId ===
+                    chat.id ? (
+                      <input
+                        autoFocus
+                        className="chat-title-input"
+                        value={
+                          editingTitle
+                        }
+                        onChange={(
+                          event
+                        ) =>
+                          setEditingTitle(
+                            event.target
+                              .value
+                          )
+                        }
+                        onBlur={() =>
                           saveRename(
-                            chat.id
-                          );
-                        }
-
-                        if (
-                          event.key ===
-                          "Escape"
-                        ) {
-                          setEditingChatId(
-                            null
-                          );
-                        }
-                      }}
-                    />
-                  ) : (
-                    <>
-                      <button
-                        className="chat-select"
-                        onClick={() =>
-                          selectChat(
                             chat.id
                           )
                         }
-                        onDoubleClick={() =>
-                          startRename(chat)
-                        }
-                        title="Double-click to rename"
-                      >
-                        {sidebarOpen
-                          ? chat.title
-                          : "•"}
-                      </button>
+                        onKeyDown={(
+                          event
+                        ) => {
+                          if (
+                            event.key ===
+                            "Enter"
+                          ) {
+                            saveRename(
+                              chat.id
+                            );
+                          }
 
-                      {sidebarOpen && (
+                          if (
+                            event.key ===
+                            "Escape"
+                          ) {
+                            setEditingChatId(
+                              null
+                            );
+                          }
+                        }}
+                      />
+                    ) : (
+                      <>
                         <button
-                          className="chat-delete"
+                          className="chat-select"
                           onClick={() =>
-                            deleteChat(
+                            selectChat(
                               chat.id
                             )
                           }
-                          title="Delete chat"
+                          onDoubleClick={() =>
+                            startRename(
+                              chat
+                            )
+                          }
+                          title="Double-click to rename"
                         >
-                          ×
+                          {sidebarOpen
+                            ? chat.title
+                            : "•"}
                         </button>
-                      )}
-                    </>
-                  )}
-                </div>
-              ))}
+
+                        {sidebarOpen && (
+                          <button
+                            className="chat-delete"
+                            onClick={() =>
+                              deleteChat(
+                                chat.id
+                              )
+                            }
+                            title="Delete chat"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )
+              )}
             </div>
           )}
         </div>
@@ -578,12 +633,16 @@ export default function App() {
           <div className="sidebar-bottom">
             <button>
               ⚙
-              <span>Settings</span>
+              <span>
+                Settings
+              </span>
             </button>
 
             <button>
               ◇
-              <span>AetherCode</span>
+              <span>
+                AetherCode
+              </span>
             </button>
           </div>
         )}
@@ -615,7 +674,8 @@ export default function App() {
                 <button
                   onClick={() =>
                     setProjectMenuOpen(
-                      (open) => !open
+                      (open) =>
+                        !open
                     )
                   }
                   title="Project options"
@@ -681,7 +741,9 @@ export default function App() {
 
               <button
                 className="welcome-new-chat"
-                onClick={createNewChat}
+                onClick={
+                  createNewChat
+                }
               >
                 Start a new chat
               </button>
@@ -756,9 +818,13 @@ export default function App() {
                 ) : (
                   <div className="message-list">
                     {activeChat.messages.map(
-                      (message) => (
+                      (
+                        message
+                      ) => (
                         <div
-                          key={message.id}
+                          key={
+                            message.id
+                          }
                           className={`message-row ${message.role}`}
                         >
                           <div className="message-bubble">
@@ -791,17 +857,27 @@ export default function App() {
               {error && (
                 <div
                   style={{
-                    position: "absolute",
-                    bottom: "112px",
+                    position:
+                      "absolute",
+                    bottom:
+                      "112px",
                     width:
                       "min(760px, calc(100% - 40px))",
-                    padding: "9px 12px",
+                    left: "50%",
+                    transform:
+                      "translateX(-50%)",
+                    padding:
+                      "9px 12px",
                     border:
                       "1px solid #49353a",
-                    borderRadius: "9px",
-                    background: "#201619",
-                    color: "#e3aeb5",
-                    fontSize: "12px"
+                    borderRadius:
+                      "9px",
+                    background:
+                      "#201619",
+                    color:
+                      "#e3aeb5",
+                    fontSize:
+                      "12px"
                   }}
                 >
                   {error}
@@ -828,24 +904,38 @@ export default function App() {
                   <div className="composer-tools">
                     <button
                       title="Attach"
-                      disabled={isLoading}
+                      disabled={
+                        isLoading
+                      }
                     >
                       ＋
                     </button>
 
                     <select
                       className="model-selector"
-                      value={activeChat.model}
-                      onChange={changeModel}
-                      disabled={isLoading}
+                      value={
+                        activeChat.model
+                      }
+                      onChange={
+                        changeModel
+                      }
+                      disabled={
+                        isLoading
+                      }
                     >
                       {MODELS.map(
                         (model) => (
                           <option
-                            key={model.id}
-                            value={model.id}
+                            key={
+                              model.id
+                            }
+                            value={
+                              model.id
+                            }
                           >
-                            {model.name}
+                            {
+                              model.name
+                            }
                           </option>
                         )
                       )}
@@ -854,7 +944,9 @@ export default function App() {
 
                   <button
                     className="send-button"
-                    onClick={sendMessage}
+                    onClick={
+                      sendMessage
+                    }
                     disabled={
                       !input.trim() ||
                       isLoading
