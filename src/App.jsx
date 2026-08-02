@@ -1,28 +1,71 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import MessageContent from "./components/MessageContent";
+import "./styles.css";
 
-import {
-  loadChats,
-  saveChats,
-  createChat,
-  updateChat,
-  deleteChat,
-  generateChatTitle
-} from "./storage/chats.js";
+const STORAGE_KEY = "aetherbot_chats";
 
-import {
-  updateProject,
-  markProjectComplete,
-  enableProject
-} from "./project/projectEngine.js";
+const MODELS = [
+  {
+    id: "groq",
+    name: "AetherBot",
+    provider: "Groq"
+  },
+  {
+    id: "gemini",
+    name: "AetherBotPro",
+    provider: "Gemini"
+  },
+  {
+    id: "auto",
+    name: "Aether Auto",
+    provider: "Auto"
+  }
+];
 
-import ModelSelector from "./components/ModelSelector.jsx";
-import MessageContent from "./components/MessageContent.jsx";
-import ProjectProgress from "./components/ProjectProgress.jsx";
+function createChat() {
+  return {
+    id: crypto.randomUUID(),
+    title: "New chat",
+    messages: [],
+    model: "auto",
+    isProject: false,
+    projectProgress: 0,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+}
+
+function loadChats() {
+  try {
+    const saved =
+      localStorage.getItem(
+        STORAGE_KEY
+      );
+
+    if (!saved) {
+      return [];
+    }
+
+    const parsed = JSON.parse(saved);
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed;
+  } catch (error) {
+    console.error(
+      "Unable to load chats:",
+      error
+    );
+
+    return [];
+  }
+}
 
 export default function App() {
-  const [chats, setChats] = useState(
-    () => loadChats()
-  );
+  const [chats, setChats] =
+    useState(loadChats);
 
   const [activeChatId, setActiveChatId] =
     useState(null);
@@ -30,138 +73,89 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] =
     useState(true);
 
+  const [input, setInput] =
+    useState("");
+
+  const [projectMenuOpen, setProjectMenuOpen] =
+    useState(false);
+
   const [editingChatId, setEditingChatId] =
     useState(null);
 
   const [editingTitle, setEditingTitle] =
     useState("");
 
-  const [messageText, setMessageText] =
-    useState("");
-
-  const [isSending, setIsSending] =
-    useState(false);
-
-  const [selectedModel, setSelectedModel] =
-    useState("aetherbot");
-
-  const [projectMenuOpen, setProjectMenuOpen] =
-    useState(false);
+  const activeChat = useMemo(
+    () =>
+      chats.find(
+        (chat) =>
+          chat.id === activeChatId
+      ) || null,
+    [chats, activeChatId]
+  );
 
   useEffect(() => {
-    saveChats(chats);
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(chats)
+    );
   }, [chats]);
 
-  function handleNewChat() {
-    const newChat = createChat();
+  function createNewChat() {
+    const chat = createChat();
 
-    setChats((currentChats) => [
-      newChat,
-      ...currentChats
+    setChats((current) => [
+      chat,
+      ...current
     ]);
 
-    setActiveChatId(newChat.id);
-
-    setSelectedModel(
-      newChat.model || "aetherbot"
-    );
-
-    setProjectMenuOpen(false);
-  }
-
-  function handleSelectChat(chat) {
     setActiveChatId(chat.id);
-
-    setSelectedModel(
-      chat.model || "aetherbot"
-    );
-
+    setInput("");
     setProjectMenuOpen(false);
   }
 
-  function handleDeleteChat(chatId) {
-    setChats((currentChats) =>
-      deleteChat(
-        currentChats,
-        chatId
+  function selectChat(id) {
+    setActiveChatId(id);
+    setInput("");
+    setProjectMenuOpen(false);
+  }
+
+  function deleteChat(id) {
+    setChats((current) =>
+      current.filter(
+        (chat) => chat.id !== id
       )
     );
 
-    if (activeChatId === chatId) {
+    if (activeChatId === id) {
       setActiveChatId(null);
     }
-
-    if (editingChatId === chatId) {
-      setEditingChatId(null);
-      setEditingTitle("");
-    }
-
-    setProjectMenuOpen(false);
   }
 
-  function startEditingChat(chat) {
+  function startRename(chat) {
     setEditingChatId(chat.id);
     setEditingTitle(chat.title);
   }
 
-  function cancelEditing() {
+  function saveRename(id) {
+    const title =
+      editingTitle.trim() ||
+      "New chat";
+
+    setChats((current) =>
+      current.map((chat) =>
+        chat.id === id
+          ? {
+              ...chat,
+              title,
+              updatedAt: Date.now()
+            }
+          : chat
+      )
+    );
+
     setEditingChatId(null);
     setEditingTitle("");
-  }
-
-  function saveChatTitle(chatId) {
-    const trimmedTitle =
-      editingTitle.trim();
-
-    if (!trimmedTitle) {
-      cancelEditing();
-      return;
-    }
-
-    setChats((currentChats) =>
-      updateChat(
-        currentChats,
-        chatId,
-        {
-          title: trimmedTitle
-        }
-      )
-    );
-
-    cancelEditing();
-  }
-
-  function handleTitleKeyDown(
-    event,
-    chatId
-  ) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-
-      saveChatTitle(chatId);
-    }
-
-    if (event.key === "Escape") {
-      cancelEditing();
-    }
-  }
-
-  function handleModelChange(modelId) {
-    setSelectedModel(modelId);
-
-    if (!activeChatId) {
-      return;
-    }
-
-    setChats((currentChats) =>
-      updateChat(
-        currentChats,
-        activeChatId,
-        {
-          model: modelId
-        }
-      )
-    );
   }
 
   function updateActiveChat(changes) {
@@ -169,91 +163,82 @@ export default function App() {
       return;
     }
 
-    setChats((currentChats) =>
-      updateChat(
-        currentChats,
-        activeChatId,
-        changes
+    setChats((current) =>
+      current.map((chat) =>
+        chat.id === activeChatId
+          ? {
+              ...chat,
+              ...changes,
+              updatedAt: Date.now()
+            }
+          : chat
       )
     );
   }
 
-  function handleEnableProject() {
+  function toggleProject() {
     if (!activeChat) {
       return;
     }
 
-    const project =
-      enableProject(
-        activeChat.project
-      );
-
     updateActiveChat({
-      project
+      isProject: !activeChat.isProject
     });
 
     setProjectMenuOpen(false);
   }
 
-  function handleDisableProject() {
+  function markProjectDone() {
     if (!activeChat) {
       return;
     }
 
     updateActiveChat({
-      project: {
-        enabled: false,
-        progress:
-          activeChat.project
-            ?.progress || 0,
-        completed: false,
-        manuallyCompleted: false,
-        progressSpeed: 1,
-        steps:
-          activeChat.project
-            ?.steps || []
-      }
+      isProject: true,
+      projectProgress: 100
     });
 
     setProjectMenuOpen(false);
   }
 
-  function handleMarkProjectDone() {
-    if (!activeChat) {
-      return;
-    }
-
-    const completedProject =
-      markProjectComplete(
-        activeChat.project
-      );
-
+  function changeModel(event) {
     updateActiveChat({
-      project:
-        completedProject
+      model: event.target.value
     });
   }
 
-  async function handleSendMessage() {
-    const text =
-      messageText.trim();
-
+  function handleComposerKeyDown(
+    event
+  ) {
     if (
-      !text ||
-      !activeChatId ||
-      isSending
+      event.key === "Enter" &&
+      !event.shiftKey
     ) {
+      event.preventDefault();
+      sendMessage();
+    }
+  }
+
+  function sendMessage() {
+    const text = input.trim();
+
+    if (!text) {
       return;
     }
 
-    const activeChat =
-      chats.find(
-        (chat) =>
-          chat.id === activeChatId
-      );
+    let chatId = activeChatId;
 
-    if (!activeChat) {
-      return;
+    if (!chatId) {
+      const newChat = createChat();
+
+      chatId = newChat.id;
+
+      setChats((current) => [
+        newChat,
+        ...current
+      ]);
+
+      setActiveChatId(chatId);
     }
 
     const userMessage = {
@@ -263,157 +248,52 @@ export default function App() {
       createdAt: Date.now()
     };
 
-    const updatedMessages = [
-      ...activeChat.messages,
-      userMessage
-    ];
-
-    const shouldGenerateTitle =
-      activeChat.messages.length === 0 &&
-      activeChat.title === "New chat";
-
-    const newTitle =
-      shouldGenerateTitle
-        ? generateChatTitle(text)
-        : activeChat.title;
-
-    const updatedProject =
-      updateProject(
-        activeChat.project,
-        updatedMessages
-      );
-
-    setChats((currentChats) =>
-      updateChat(
-        currentChats,
-        activeChatId,
-        {
-          messages:
-            updatedMessages,
-          title:
-            newTitle,
-          project:
-            updatedProject
+    setChats((current) =>
+      current.map((chat) => {
+        if (chat.id !== chatId) {
+          return chat;
         }
-      )
+
+        const messages = [
+          ...chat.messages,
+          userMessage
+        ];
+
+        const title =
+          chat.messages.length === 0
+            ? generateTitle(text)
+            : chat.title;
+
+        return {
+          ...chat,
+          title,
+          messages,
+          updatedAt: Date.now()
+        };
+      })
     );
 
-    setMessageText("");
-    setIsSending(true);
-
-    try {
-      const response = await fetch(
-        "/.netlify/functions/aetherbot",
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json"
-          },
-
-          body: JSON.stringify({
-            model:
-              selectedModel,
-
-            messages:
-              updatedMessages.map(
-                (message) => ({
-                  role:
-                    message.role,
-                  content:
-                    message.content
-                })
-              )
-          })
-        }
-      );
-
-      const data =
-        await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data?.error ||
-            "AetherBot request failed."
-        );
-      }
-
-      const assistantMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content:
-          data.message ||
-          "I didn't receive a response.",
-        createdAt: Date.now()
-      };
-
-      const finalMessages = [
-        ...updatedMessages,
-        assistantMessage
-      ];
-
-      const finalProject =
-        updateProject(
-          updatedProject,
-          finalMessages
-        );
-
-      updateActiveChat({
-        messages:
-          finalMessages,
-        project:
-          finalProject
-      });
-    } catch (error) {
-      console.error(error);
-
-      const errorMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content:
-          "Sorry, AetherBot could not respond right now.",
-        createdAt: Date.now()
-      };
-
-      const finalMessages = [
-        ...updatedMessages,
-        errorMessage
-      ];
-
-      const finalProject =
-        updateProject(
-          updatedProject,
-          finalMessages
-        );
-
-      updateActiveChat({
-        messages:
-          finalMessages,
-        project:
-          finalProject
-      });
-    } finally {
-      setIsSending(false);
-    }
+    setInput("");
   }
 
-  function handleComposerKeyDown(event) {
-    if (
-      event.key === "Enter" &&
-      !event.shiftKey
-    ) {
-      event.preventDefault();
+  function generateTitle(text) {
+    const cleaned = text
+      .replace(/\s+/g, " ")
+      .trim();
 
-      handleSendMessage();
+    if (!cleaned) {
+      return "New chat";
     }
-  }
 
-  const activeChat =
-    chats.find(
-      (chat) =>
-        chat.id === activeChatId
-    ) || null;
+    if (cleaned.length <= 40) {
+      return cleaned;
+    }
+
+    return (
+      cleaned.slice(0, 40).trim() +
+      "..."
+    );
+  }
 
   return (
     <div className="aether-app">
@@ -431,10 +311,7 @@ export default function App() {
 
           {sidebarOpen && (
             <div>
-              <h1>
-                AetherClient
-              </h1>
-
+              <h1>AetherBot</h1>
               <span>
                 AI workspace
               </span>
@@ -442,150 +319,145 @@ export default function App() {
           )}
         </div>
 
-        <button
-          className="new-chat-button"
-          onClick={
-            handleNewChat
-          }
-        >
-          <span>＋</span>
-
-          {sidebarOpen && (
+        {sidebarOpen && (
+          <button
+            className="new-chat-button"
+            onClick={
+              createNewChat
+            }
+          >
+            <span>＋</span>
             <span>
               New chat
             </span>
-          )}
-        </button>
+          </button>
+        )}
 
-        {sidebarOpen && (
-          <div className="sidebar-section">
+        <div className="sidebar-section">
+          {sidebarOpen && (
             <div className="sidebar-label">
               Chats
             </div>
+          )}
 
-            {chats.length === 0 ? (
+          {chats.length === 0 ? (
+            sidebarOpen && (
               <div className="empty-chat-list">
-                No conversations yet
+                Your chats will appear here.
               </div>
-            ) : (
-              <div className="chat-list">
-                {chats.map(
-                  (chat) => (
-                    <div
-                      key={
-                        chat.id
+            )
+          ) : (
+            <div className="chat-list">
+              {chats.map((chat) => (
+                <div
+                  key={chat.id}
+                  className={`chat-list-item ${
+                    chat.id ===
+                    activeChatId
+                      ? "active"
+                      : ""
+                  }`}
+                >
+                  {editingChatId ===
+                  chat.id ? (
+                    <input
+                      autoFocus
+                      className="chat-title-input"
+                      value={
+                        editingTitle
                       }
-                      className={`chat-list-item ${
-                        activeChatId ===
-                        chat.id
-                          ? "active"
-                          : ""
-                      }`}
-                    >
-                      {editingChatId ===
-                      chat.id ? (
-                        <input
-                          className="chat-title-input"
-                          value={
-                            editingTitle
-                          }
-                          onChange={(
-                            event
-                          ) =>
-                            setEditingTitle(
-                              event
-                                .target
-                                .value
-                            )
-                          }
-                          onKeyDown={(
-                            event
-                          ) =>
-                            handleTitleKeyDown(
-                              event,
-                              chat.id
-                            )
-                          }
-                          onBlur={() =>
-                            saveChatTitle(
-                              chat.id
-                            )
-                          }
-                          autoFocus
-                        />
-                      ) : (
-                        <button
-                          className="chat-select"
-                          onClick={() =>
-                            handleSelectChat(
-                              chat
-                            )
-                          }
-                          onDoubleClick={() =>
-                            startEditingChat(
-                              chat
-                            )
-                          }
-                          title="Double-click to rename"
-                        >
-                          {chat.project
-                            ?.enabled && (
-                            <span
-                              style={{
-                                marginRight:
-                                  "6px"
-                              }}
-                            >
-                              🚀
-                            </span>
-                          )}
+                      onChange={(event) =>
+                        setEditingTitle(
+                          event.target
+                            .value
+                        )
+                      }
+                      onBlur={() =>
+                        saveRename(
+                          chat.id
+                        )
+                      }
+                      onKeyDown={(
+                        event
+                      ) => {
+                        if (
+                          event.key ===
+                          "Enter"
+                        ) {
+                          saveRename(
+                            chat.id
+                          );
+                        }
 
-                          {
-                            chat.title
-                          }
-                        </button>
-                      )}
-
+                        if (
+                          event.key ===
+                          "Escape"
+                        ) {
+                          setEditingChatId(
+                            null
+                          );
+                        }
+                      }}
+                    />
+                  ) : (
+                    <>
                       <button
-                        className="chat-delete"
+                        className="chat-select"
                         onClick={() =>
-                          handleDeleteChat(
+                          selectChat(
                             chat.id
                           )
                         }
-                        title="Delete chat"
+                        onDoubleClick={() =>
+                          startRename(
+                            chat
+                          )
+                        }
+                        title="Double-click to rename"
                       >
-                        ×
+                        {sidebarOpen
+                          ? chat.title
+                          : "•"}
                       </button>
-                    </div>
-                  )
-                )}
-              </div>
-            )}
-          </div>
-        )}
 
-        <div className="sidebar-bottom">
-          <button>
-            ⚙
+                      {sidebarOpen && (
+                        <button
+                          className="chat-delete"
+                          onClick={() =>
+                            deleteChat(
+                              chat.id
+                            )
+                          }
+                          title="Delete chat"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
-            {sidebarOpen && (
+        {sidebarOpen && (
+          <div className="sidebar-bottom">
+            <button>
+              ⚙
               <span>
                 Settings
               </span>
-            )}
-          </button>
+            </button>
 
-          <button>
-            💻
-
-            {sidebarOpen && (
+            <button>
+              ◇
               <span>
                 AetherCode
               </span>
-            )}
-          </button>
-        </div>
+            </button>
+          </div>
+        )}
       </aside>
 
       <main className="aether-main">
@@ -594,8 +466,7 @@ export default function App() {
             className="menu-button"
             onClick={() =>
               setSidebarOpen(
-                (open) =>
-                  !open
+                (open) => !open
               )
             }
             title="Toggle sidebar"
@@ -604,93 +475,61 @@ export default function App() {
           </button>
 
           <div className="header-title">
-            <span>
-              {activeChat
-                ? activeChat.title
-                : "AetherClient"}
-            </span>
+            {activeChat
+              ? activeChat.title
+              : "AetherBot"}
           </div>
 
           <div className="header-actions">
             {activeChat && (
               <div className="project-menu-wrapper">
                 <button
-                  title="Project options"
                   onClick={() =>
                     setProjectMenuOpen(
                       (open) =>
                         !open
                     )
                   }
+                  title="Project options"
                 >
-                  {activeChat.project
-                    ?.enabled
-                    ? "🚀"
-                    : "◇"}
+                  ◇
                 </button>
 
                 {projectMenuOpen && (
                   <div className="project-menu">
-                    {!activeChat.project
-                      ?.enabled ? (
-                      <button
-                        onClick={
-                          handleEnableProject
-                        }
-                      >
-                        🚀 Make this a project
-                      </button>
-                    ) : (
-                      <>
-                        <div className="project-menu-status">
-                          <strong>
-                            Project mode
-                          </strong>
+                    <div className="project-menu-status">
+                      <span>
+                        Project
+                      </span>
 
-                          <span>
-                            {
-                              activeChat
-                                .project
-                                .progress
-                            }
-                            %
-                          </span>
-                        </div>
+                      <span>
+                        {activeChat
+                          .projectProgress}
+                        %
+                      </span>
+                    </div>
 
-                        <button
-                          onClick={
-                            handleMarkProjectDone
-                          }
-                        >
-                          ✓ Mark as done
-                        </button>
+                    <button
+                      onClick={
+                        toggleProject
+                      }
+                    >
+                      {activeChat.isProject
+                        ? "Remove project mode"
+                        : "Mark as project"}
+                    </button>
 
-                        <button
-                          onClick={
-                            handleDisableProject
-                          }
-                        >
-                          Turn off project mode
-                        </button>
-                      </>
-                    )}
+                    <button
+                      onClick={
+                        markProjectDone
+                      }
+                    >
+                      Mark project as done
+                    </button>
                   </div>
                 )}
               </div>
             )}
-
-            <button title="Search">
-              ⌕
-            </button>
-
-            <button
-              title="New chat"
-              onClick={
-                handleNewChat
-              }
-            >
-              ＋
-            </button>
           </div>
         </header>
 
@@ -702,61 +541,98 @@ export default function App() {
               </div>
 
               <h2>
-                What can I help you with?
+                How can AetherBot help?
               </h2>
 
               <p>
-                Start a conversation or
-                create a project.
+                Start a conversation and
+                your chats will be saved
+                automatically.
               </p>
 
               <button
                 className="welcome-new-chat"
                 onClick={
-                  handleNewChat
+                  createNewChat
                 }
               >
-                ＋ Start a new chat
+                Start a new chat
               </button>
             </div>
           ) : (
             <>
-              <ProjectProgress
-                project={
-                  activeChat.project
-                }
-                onMarkComplete={
-                  handleMarkProjectDone
-                }
-              />
+              {activeChat.isProject && (
+                <div className="project-progress">
+                  <div className="project-progress-header">
+                    <div>
+                      <span className="project-icon">
+                        ◇
+                      </span>
+
+                      <span className="project-label">
+                        Project
+                      </span>
+                    </div>
+
+                    <span className="project-percent">
+                      {
+                        activeChat.projectProgress
+                      }
+                      %
+                    </span>
+                  </div>
+
+                  <div className="project-progress-track">
+                    <div
+                      className="project-progress-fill"
+                      style={{
+                        width: `${activeChat.projectProgress}%`
+                      }}
+                    />
+                  </div>
+
+                  <div className="project-progress-footer">
+                    <span>
+                      Progress is tracked
+                      separately from chat
+                    </span>
+
+                    {activeChat.projectProgress <
+                      100 && (
+                      <button
+                        onClick={
+                          markProjectDone
+                        }
+                      >
+                        Mark done
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="conversation">
                 {activeChat.messages
                   .length === 0 ? (
                   <div className="conversation-empty">
                     <h2>
-                      {
-                        activeChat.title
-                      }
+                      {activeChat.title}
                     </h2>
 
                     <p>
-                      Start the conversation.
+                      Send a message to
+                      begin.
                     </p>
                   </div>
                 ) : (
                   <div className="message-list">
                     {activeChat.messages.map(
-                      (
-                        message
-                      ) => (
+                      (message) => (
                         <div
                           key={
                             message.id
                           }
-                          className={`message-row ${
-                            message.role
-                          }`}
+                          className={`message-row ${message.role}`}
                         >
                           <div className="message-bubble">
                             <MessageContent
@@ -771,80 +647,77 @@ export default function App() {
                         </div>
                       )
                     )}
-
-                    {isSending && (
-                      <div className="message-row assistant">
-                        <div className="message-bubble typing">
-                          AetherBot is thinking...
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
+
+              <div className="message-composer">
+                <textarea
+                  value={input}
+                  onChange={(event) =>
+                    setInput(
+                      event.target.value
+                    )
+                  }
+                  onKeyDown={
+                    handleComposerKeyDown
+                  }
+                  placeholder="Message AetherBot..."
+                  rows={1}
+                />
+
+                <div className="composer-bottom">
+                  <div className="composer-tools">
+                    <button
+                      title="Attach"
+                    >
+                      ＋
+                    </button>
+
+                    <select
+                      className="model-selector"
+                      value={
+                        activeChat.model
+                      }
+                      onChange={
+                        changeModel
+                      }
+                    >
+                      {MODELS.map(
+                        (model) => (
+                          <option
+                            key={
+                              model.id
+                            }
+                            value={
+                              model.id
+                            }
+                          >
+                            {
+                              model.name
+                            }
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </div>
+
+                  <button
+                    className="send-button"
+                    onClick={
+                      sendMessage
+                    }
+                    disabled={
+                      !input.trim()
+                    }
+                    title="Send"
+                  >
+                    ↑
+                  </button>
+                </div>
+              </div>
             </>
           )}
-
-          <div className="message-composer">
-            <textarea
-              value={
-                messageText
-              }
-              onChange={(
-                event
-              ) =>
-                setMessageText(
-                  event.target
-                    .value
-                )
-              }
-              onKeyDown={
-                handleComposerKeyDown
-              }
-              placeholder={
-                activeChat
-                  ? "Message AetherBot..."
-                  : "Start a new chat..."
-              }
-              rows="1"
-              disabled={
-                !activeChat ||
-                isSending
-              }
-            />
-
-            <div className="composer-bottom">
-              <div className="composer-tools">
-                <button title="Attach">
-                  ＋
-                </button>
-
-                <ModelSelector
-                  selectedModel={
-                    selectedModel
-                  }
-                  onChange={
-                    handleModelChange
-                  }
-                />
-              </div>
-
-              <button
-                className="send-button"
-                title="Send"
-                onClick={
-                  handleSendMessage
-                }
-                disabled={
-                  !activeChat ||
-                  !messageText.trim() ||
-                  isSending
-                }
-              >
-                ↑
-              </button>
-            </div>
-          </div>
         </section>
       </main>
     </div>
