@@ -1,24 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import MessageContent from "./components/MessageContent";
+import { sendToAI } from "./services/ai";
 import "./styles.css";
 
 const STORAGE_KEY = "aetherbot_chats";
 
 const MODELS = [
   {
+    id: "auto",
+    name: "Aether Auto"
+  },
+  {
     id: "groq",
-    name: "AetherBot",
-    provider: "Groq"
+    name: "AetherBot"
   },
   {
     id: "gemini",
-    name: "AetherBotPro",
-    provider: "Gemini"
-  },
-  {
-    id: "auto",
-    name: "Aether Auto",
-    provider: "Auto"
+    name: "AetherBotPro"
   }
 ];
 
@@ -38,9 +36,7 @@ function createChat() {
 function loadChats() {
   try {
     const saved =
-      localStorage.getItem(
-        STORAGE_KEY
-      );
+      localStorage.getItem(STORAGE_KEY);
 
     if (!saved) {
       return [];
@@ -48,11 +44,9 @@ function loadChats() {
 
     const parsed = JSON.parse(saved);
 
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    return parsed;
+    return Array.isArray(parsed)
+      ? parsed
+      : [];
   } catch (error) {
     console.error(
       "Unable to load chats:",
@@ -61,6 +55,25 @@ function loadChats() {
 
     return [];
   }
+}
+
+function generateTitle(text) {
+  const cleaned = text
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned) {
+    return "New chat";
+  }
+
+  if (cleaned.length <= 40) {
+    return cleaned;
+  }
+
+  return (
+    cleaned.slice(0, 40).trim() +
+    "..."
+  );
 }
 
 export default function App() {
@@ -74,6 +87,12 @@ export default function App() {
     useState(true);
 
   const [input, setInput] =
+    useState("");
+
+  const [isLoading, setIsLoading] =
+    useState(false);
+
+  const [error, setError] =
     useState("");
 
   const [projectMenuOpen, setProjectMenuOpen] =
@@ -102,6 +121,10 @@ export default function App() {
   }, [chats]);
 
   function createNewChat() {
+    if (isLoading) {
+      return;
+    }
+
     const chat = createChat();
 
     setChats((current) => [
@@ -111,16 +134,26 @@ export default function App() {
 
     setActiveChatId(chat.id);
     setInput("");
+    setError("");
     setProjectMenuOpen(false);
   }
 
   function selectChat(id) {
+    if (isLoading) {
+      return;
+    }
+
     setActiveChatId(id);
     setInput("");
+    setError("");
     setProjectMenuOpen(false);
   }
 
   function deleteChat(id) {
+    if (isLoading) {
+      return;
+    }
+
     setChats((current) =>
       current.filter(
         (chat) => chat.id !== id
@@ -133,6 +166,10 @@ export default function App() {
   }
 
   function startRename(chat) {
+    if (isLoading) {
+      return;
+    }
+
     setEditingChatId(chat.id);
     setEditingTitle(chat.title);
   }
@@ -177,7 +214,7 @@ export default function App() {
   }
 
   function toggleProject() {
-    if (!activeChat) {
+    if (!activeChat || isLoading) {
       return;
     }
 
@@ -189,7 +226,7 @@ export default function App() {
   }
 
   function markProjectDone() {
-    if (!activeChat) {
+    if (!activeChat || isLoading) {
       return;
     }
 
@@ -202,6 +239,10 @@ export default function App() {
   }
 
   function changeModel(event) {
+    if (isLoading) {
+      return;
+    }
+
     updateActiveChat({
       model: event.target.value
     });
@@ -219,19 +260,26 @@ export default function App() {
     }
   }
 
-  function sendMessage() {
+  async function sendMessage() {
     const text = input.trim();
 
-    if (!text) {
+    if (!text || isLoading) {
       return;
     }
 
+    setError("");
+
     let chatId = activeChatId;
+
+    let chatForRequest =
+      activeChat;
 
     if (!chatId) {
       const newChat = createChat();
 
       chatId = newChat.id;
+
+      chatForRequest = newChat;
 
       setChats((current) => [
         newChat,
@@ -248,51 +296,83 @@ export default function App() {
       createdAt: Date.now()
     };
 
+    const existingMessages =
+      chatForRequest?.messages || [];
+
+    const requestMessages = [
+      ...existingMessages,
+      userMessage
+    ];
+
+    const selectedModel =
+      chatForRequest?.model ||
+      "auto";
+
     setChats((current) =>
       current.map((chat) => {
         if (chat.id !== chatId) {
           return chat;
         }
 
-        const messages = [
-          ...chat.messages,
-          userMessage
-        ];
-
-        const title =
-          chat.messages.length === 0
-            ? generateTitle(text)
-            : chat.title;
-
         return {
           ...chat,
-          title,
-          messages,
+          title:
+            chat.messages.length === 0
+              ? generateTitle(text)
+              : chat.title,
+          messages: [
+            ...chat.messages,
+            userMessage
+          ],
           updatedAt: Date.now()
         };
       })
     );
 
     setInput("");
-  }
+    setIsLoading(true);
 
-  function generateTitle(text) {
-    const cleaned = text
-      .replace(/\s+/g, " ")
-      .trim();
+    try {
+      const aiResponse =
+        await sendToAI(
+          selectedModel,
+          requestMessages
+        );
 
-    if (!cleaned) {
-      return "New chat";
+      const assistantMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: aiResponse,
+        createdAt: Date.now()
+      };
+
+      setChats((current) =>
+        current.map((chat) =>
+          chat.id === chatId
+            ? {
+                ...chat,
+                messages: [
+                  ...chat.messages,
+                  assistantMessage
+                ],
+                updatedAt: Date.now()
+              }
+            : chat
+        )
+      );
+    } catch (requestError) {
+      console.error(
+        "AI request failed:",
+        requestError
+      );
+
+      setError(
+        requestError?.message ||
+          "Something went wrong while contacting the AI."
+      );
+    } finally {
+      setIsLoading(false);
     }
-
-    if (cleaned.length <= 40) {
-      return cleaned;
-    }
-
-    return (
-      cleaned.slice(0, 40).trim() +
-      "..."
-    );
   }
 
   return (
@@ -503,8 +583,9 @@ export default function App() {
                       </span>
 
                       <span>
-                        {activeChat
-                          .projectProgress}
+                        {
+                          activeChat.projectProgress
+                        }
                         %
                       </span>
                     </div>
@@ -647,9 +728,44 @@ export default function App() {
                         </div>
                       )
                     )}
+
+                    {isLoading && (
+                      <div className="message-row assistant">
+                        <div className="message-bubble">
+                          <div className="typing">
+                            AetherBot is thinking...
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
+
+              {error && (
+                <div
+                  style={{
+                    position:
+                      "absolute",
+                    bottom: "112px",
+                    width: "min(760px, calc(100% - 40px))",
+                    padding:
+                      "9px 12px",
+                    border:
+                      "1px solid #49353a",
+                    borderRadius:
+                      "9px",
+                    background:
+                      "#201619",
+                    color:
+                      "#e3aeb5",
+                    fontSize:
+                      "12px"
+                  }}
+                >
+                  {error}
+                </div>
+              )}
 
               <div className="message-composer">
                 <textarea
@@ -664,12 +780,18 @@ export default function App() {
                   }
                   placeholder="Message AetherBot..."
                   rows={1}
+                  disabled={
+                    isLoading
+                  }
                 />
 
                 <div className="composer-bottom">
                   <div className="composer-tools">
                     <button
                       title="Attach"
+                      disabled={
+                        isLoading
+                      }
                     >
                       ＋
                     </button>
@@ -681,6 +803,9 @@ export default function App() {
                       }
                       onChange={
                         changeModel
+                      }
+                      disabled={
+                        isLoading
                       }
                     >
                       {MODELS.map(
@@ -708,7 +833,8 @@ export default function App() {
                       sendMessage
                     }
                     disabled={
-                      !input.trim()
+                      !input.trim() ||
+                      isLoading
                     }
                     title="Send"
                   >
