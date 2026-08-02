@@ -1,17 +1,63 @@
 import { useEffect, useState } from "react";
-import {
-  DEFAULT_SETTINGS,
-  loadSettings,
-  resetSettings,
-  saveSettings
-} from "../services/settings";
+
+const SETTINGS_KEY =
+  "aetherbot_settings";
+
+const DEFAULT_SETTINGS = {
+  theme: "dark",
+  accent: "default",
+  compactMode: false,
+  enterToSend: true,
+  animations: true,
+  showProjectProgress: true
+};
+
+function getSettings() {
+  try {
+    const saved =
+      localStorage.getItem(
+        SETTINGS_KEY
+      );
+
+    if (!saved) {
+      return {
+        ...DEFAULT_SETTINGS
+      };
+    }
+
+    const parsed = JSON.parse(saved);
+
+    return {
+      ...DEFAULT_SETTINGS,
+      ...parsed
+    };
+  } catch {
+    return {
+      ...DEFAULT_SETTINGS
+    };
+  }
+}
+
+function saveSettings(settings) {
+  try {
+    localStorage.setItem(
+      SETTINGS_KEY,
+      JSON.stringify(settings)
+    );
+  } catch (error) {
+    console.error(
+      "Unable to save AetherBot settings:",
+      error
+    );
+  }
+}
 
 export default function Settings({
   onClose,
   onSettingsChange
 }) {
   const [settings, setSettings] =
-    useState(loadSettings);
+    useState(getSettings);
 
   useEffect(() => {
     saveSettings(settings);
@@ -19,10 +65,7 @@ export default function Settings({
     if (onSettingsChange) {
       onSettingsChange(settings);
     }
-  }, [
-    settings,
-    onSettingsChange
-  ]);
+  }, [settings]);
 
   function updateSetting(
     key,
@@ -41,14 +84,30 @@ export default function Settings({
   }
 
   return (
-    <div className="settings-overlay">
-      <div className="settings-panel">
+    <div
+      className="settings-overlay"
+      onMouseDown={(event) => {
+        if (
+          event.target ===
+          event.currentTarget
+        ) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        className="settings-panel"
+        onMouseDown={(event) =>
+          event.stopPropagation()
+        }
+      >
         <div className="settings-header">
           <div>
             <h2>Settings</h2>
+
             <p>
-              Personalize your AetherBot
-              workspace.
+              Personalize your
+              AetherBot workspace.
             </p>
           </div>
 
@@ -66,7 +125,10 @@ export default function Settings({
 
             <div className="settings-row">
               <div>
-                <strong>Theme</strong>
+                <strong>
+                  Theme
+                </strong>
+
                 <span>
                   Choose how AetherBot
                   looks.
@@ -74,11 +136,14 @@ export default function Settings({
               </div>
 
               <select
-                value={settings.theme}
+                value={
+                  settings.theme
+                }
                 onChange={(event) =>
                   updateSetting(
                     "theme",
-                    event.target.value
+                    event.target
+                      .value
                   )
                 }
               >
@@ -101,6 +166,7 @@ export default function Settings({
                 <strong>
                   Accent
                 </strong>
+
                 <span>
                   Choose the interface
                   accent.
@@ -114,7 +180,8 @@ export default function Settings({
                 onChange={(event) =>
                   updateSetting(
                     "accent",
-                    event.target.value
+                    event.target
+                      .value
                   )
                 }
               >
@@ -143,12 +210,13 @@ export default function Settings({
                 </strong>
 
                 <span>
-                  Reduce spacing in the
-                  interface.
+                  Reduce spacing in
+                  the interface.
                 </span>
               </div>
 
               <button
+                type="button"
                 className={`settings-toggle ${
                   settings.compactMode
                     ? "enabled"
@@ -159,6 +227,9 @@ export default function Settings({
                     "compactMode",
                     !settings.compactMode
                   )
+                }
+                aria-pressed={
+                  settings.compactMode
                 }
               >
                 <span />
@@ -176,12 +247,13 @@ export default function Settings({
                 </strong>
 
                 <span>
-                  Press Enter to send a
-                  message.
+                  Press Enter to send
+                  a message.
                 </span>
               </div>
 
               <button
+                type="button"
                 className={`settings-toggle ${
                   settings.enterToSend
                     ? "enabled"
@@ -192,6 +264,9 @@ export default function Settings({
                     "enterToSend",
                     !settings.enterToSend
                   )
+                }
+                aria-pressed={
+                  settings.enterToSend
                 }
               >
                 <span />
@@ -211,6 +286,7 @@ export default function Settings({
               </div>
 
               <button
+                type="button"
                 className={`settings-toggle ${
                   settings.animations
                     ? "enabled"
@@ -221,6 +297,9 @@ export default function Settings({
                     "animations",
                     !settings.animations
                   )
+                }
+                aria-pressed={
+                  settings.animations
                 }
               >
                 <span />
@@ -238,12 +317,13 @@ export default function Settings({
                 </strong>
 
                 <span>
-                  Show the progress bar for
-                  detected projects.
+                  Show the progress bar
+                  for detected projects.
                 </span>
               </div>
 
               <button
+                type="button"
                 className={`settings-toggle ${
                   settings.showProjectProgress
                     ? "enabled"
@@ -255,26 +335,31 @@ export default function Settings({
                     !settings.showProjectProgress
                   )
                 }
+                aria-pressed={
+                  settings.showProjectProgress
+                }
               >
                 <span />
               </button>
             </div>
           </section>
 
-          <section className="settings-section danger-section">
+          <section className="settings-section">
             <h3>Reset</h3>
 
             <button
+              type="button"
               className="reset-settings"
               onClick={
                 restoreDefaults
               }
             >
-              Restore default settings
+              Restore default
+              settings
             </button>
           </section>
         </div>
       </div>
     </div>
   );
-                }
+}
