@@ -13,6 +13,17 @@ export default function MessageContent({
     );
   }
 
+  async function copyCode(code) {
+    try {
+      await navigator.clipboard.writeText(code);
+    } catch (error) {
+      console.error(
+        "Unable to copy code:",
+        error
+      );
+    }
+  }
+
   return (
     <div className="markdown-message">
       <ReactMarkdown
@@ -23,10 +34,46 @@ export default function MessageContent({
               <a
                 href={href}
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
               >
                 {children}
               </a>
+            );
+          },
+
+          h1({ children }) {
+            return <h1>{children}</h1>;
+          },
+
+          h2({ children }) {
+            return <h2>{children}</h2>;
+          },
+
+          h3({ children }) {
+            return <h3>{children}</h3>;
+          },
+
+          ul({ children }) {
+            return <ul>{children}</ul>;
+          },
+
+          ol({ children }) {
+            return <ol>{children}</ol>;
+          },
+
+          blockquote({ children }) {
+            return (
+              <blockquote>
+                {children}
+              </blockquote>
+            );
+          },
+
+          table({ children }) {
+            return (
+              <div className="table-wrapper">
+                <table>{children}</table>
+              </div>
             );
           },
 
@@ -56,19 +103,6 @@ export default function MessageContent({
               );
             }
 
-            async function copyCode() {
-              try {
-                await navigator.clipboard.writeText(
-                  codeText
-                );
-              } catch (error) {
-                console.error(
-                  "Could not copy code:",
-                  error
-                );
-              }
-            }
-
             return (
               <div className="code-block">
                 <div className="code-header">
@@ -77,8 +111,9 @@ export default function MessageContent({
                   </span>
 
                   <button
-                    onClick={
-                      copyCode
+                    type="button"
+                    onClick={() =>
+                      copyCode(codeText)
                     }
                   >
                     Copy
@@ -96,56 +131,6 @@ export default function MessageContent({
                 </pre>
               </div>
             );
-          },
-
-          h1({ children }) {
-            return (
-              <h1>{children}</h1>
-            );
-          },
-
-          h2({ children }) {
-            return (
-              <h2>{children}</h2>
-            );
-          },
-
-          h3({ children }) {
-            return (
-              <h3>{children}</h3>
-            );
-          },
-
-          ul({ children }) {
-            return (
-              <ul>{children}</ul>
-            );
-          },
-
-          ol({ children }) {
-            return (
-              <ol>{children}</ol>
-            );
-          },
-
-          blockquote({
-            children
-          }) {
-            return (
-              <blockquote>
-                {children}
-              </blockquote>
-            );
-          },
-
-          table({ children }) {
-            return (
-              <div className="table-wrapper">
-                <table>
-                  {children}
-                </table>
-              </div>
-            );
           }
         }}
       >
@@ -153,4 +138,4 @@ export default function MessageContent({
       </ReactMarkdown>
     </div>
   );
-          }
+}
