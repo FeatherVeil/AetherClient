@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 
-const SETTINGS_KEY =
-  "aetherbot_settings";
+const SETTINGS_KEY = "aetherbot_settings";
 
 const DEFAULT_SETTINGS = {
   theme: "dark",
@@ -9,15 +8,16 @@ const DEFAULT_SETTINGS = {
   compactMode: false,
   enterToSend: true,
   animations: true,
-  showProjectProgress: true
+  showProjectProgress: true,
+  spellcheck: true,
+  autoFocusComposer: true
 };
 
 function getSettings() {
   try {
-    const saved =
-      localStorage.getItem(
-        SETTINGS_KEY
-      );
+    const saved = localStorage.getItem(
+      SETTINGS_KEY
+    );
 
     if (!saved) {
       return {
@@ -26,6 +26,16 @@ function getSettings() {
     }
 
     const parsed = JSON.parse(saved);
+
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      Array.isArray(parsed)
+    ) {
+      return {
+        ...DEFAULT_SETTINGS
+      };
+    }
 
     return {
       ...DEFAULT_SETTINGS,
@@ -52,6 +62,26 @@ function saveSettings(settings) {
   }
 }
 
+function Toggle({
+  enabled,
+  onChange,
+  label
+}) {
+  return (
+    <button
+      type="button"
+      className={`settings-toggle ${
+        enabled ? "enabled" : ""
+      }`}
+      onClick={onChange}
+      aria-pressed={enabled}
+      aria-label={label}
+    >
+      <span />
+    </button>
+  );
+}
+
 export default function Settings({
   onClose,
   onSettingsChange
@@ -65,12 +95,9 @@ export default function Settings({
     if (onSettingsChange) {
       onSettingsChange(settings);
     }
-  }, [settings]);
+  }, [settings, onSettingsChange]);
 
-  function updateSetting(
-    key,
-    value
-  ) {
+  function updateSetting(key, value) {
     setSettings((current) => ({
       ...current,
       [key]: value
@@ -83,17 +110,21 @@ export default function Settings({
     });
   }
 
+  function handleOverlayMouseDown(event) {
+    if (
+      event.target ===
+      event.currentTarget
+    ) {
+      onClose();
+    }
+  }
+
   return (
     <div
       className="settings-overlay"
-      onMouseDown={(event) => {
-        if (
-          event.target ===
-          event.currentTarget
-        ) {
-          onClose();
-        }
-      }}
+      onMouseDown={
+        handleOverlayMouseDown
+      }
     >
       <div
         className="settings-panel"
@@ -112,8 +143,10 @@ export default function Settings({
           </div>
 
           <button
+            type="button"
             className="settings-close"
             onClick={onClose}
+            aria-label="Close settings"
           >
             ×
           </button>
@@ -136,14 +169,11 @@ export default function Settings({
               </div>
 
               <select
-                value={
-                  settings.theme
-                }
+                value={settings.theme}
                 onChange={(event) =>
                   updateSetting(
                     "theme",
-                    event.target
-                      .value
+                    event.target.value
                   )
                 }
               >
@@ -174,14 +204,11 @@ export default function Settings({
               </div>
 
               <select
-                value={
-                  settings.accent
-                }
+                value={settings.accent}
                 onChange={(event) =>
                   updateSetting(
                     "accent",
-                    event.target
-                      .value
+                    event.target.value
                   )
                 }
               >
@@ -215,25 +242,44 @@ export default function Settings({
                 </span>
               </div>
 
-              <button
-                type="button"
-                className={`settings-toggle ${
+              <Toggle
+                enabled={
                   settings.compactMode
-                    ? "enabled"
-                    : ""
-                }`}
-                onClick={() =>
+                }
+                onChange={() =>
                   updateSetting(
                     "compactMode",
                     !settings.compactMode
                   )
                 }
-                aria-pressed={
-                  settings.compactMode
+                label="Toggle compact mode"
+              />
+            </div>
+
+            <div className="settings-row">
+              <div>
+                <strong>
+                  Animations
+                </strong>
+
+                <span>
+                  Enable interface
+                  transitions.
+                </span>
+              </div>
+
+              <Toggle
+                enabled={
+                  settings.animations
                 }
-              >
-                <span />
-              </button>
+                onChange={() =>
+                  updateSetting(
+                    "animations",
+                    !settings.animations
+                  )
+                }
+                label="Toggle animations"
+              />
             </div>
           </section>
 
@@ -252,58 +298,71 @@ export default function Settings({
                 </span>
               </div>
 
-              <button
-                type="button"
-                className={`settings-toggle ${
+              <Toggle
+                enabled={
                   settings.enterToSend
-                    ? "enabled"
-                    : ""
-                }`}
-                onClick={() =>
+                }
+                onChange={() =>
                   updateSetting(
                     "enterToSend",
                     !settings.enterToSend
                   )
                 }
-                aria-pressed={
-                  settings.enterToSend
-                }
-              >
-                <span />
-              </button>
+                label="Toggle Enter to send"
+              />
             </div>
 
             <div className="settings-row">
               <div>
                 <strong>
-                  Animations
+                  Spellcheck
                 </strong>
 
                 <span>
-                  Enable interface
-                  transitions.
+                  Enable browser
+                  spellcheck in the
+                  message composer.
                 </span>
               </div>
 
-              <button
-                type="button"
-                className={`settings-toggle ${
-                  settings.animations
-                    ? "enabled"
-                    : ""
-                }`}
-                onClick={() =>
+              <Toggle
+                enabled={
+                  settings.spellcheck
+                }
+                onChange={() =>
                   updateSetting(
-                    "animations",
-                    !settings.animations
+                    "spellcheck",
+                    !settings.spellcheck
                   )
                 }
-                aria-pressed={
-                  settings.animations
+                label="Toggle spellcheck"
+              />
+            </div>
+
+            <div className="settings-row">
+              <div>
+                <strong>
+                  Auto-focus composer
+                </strong>
+
+                <span>
+                  Focus the message box
+                  when opening a chat.
+                </span>
+              </div>
+
+              <Toggle
+                enabled={
+                  settings.autoFocusComposer
                 }
-              >
-                <span />
-              </button>
+                onChange={() =>
+                  updateSetting(
+                    "autoFocusComposer",
+                    !settings.autoFocusComposer
+                  )
+                }
+                label="Toggle auto-focus composer"
+              />
             </div>
           </section>
 
@@ -322,41 +381,47 @@ export default function Settings({
                 </span>
               </div>
 
-              <button
-                type="button"
-                className={`settings-toggle ${
+              <Toggle
+                enabled={
                   settings.showProjectProgress
-                    ? "enabled"
-                    : ""
-                }`}
-                onClick={() =>
+                }
+                onChange={() =>
                   updateSetting(
                     "showProjectProgress",
                     !settings.showProjectProgress
                   )
                 }
-                aria-pressed={
-                  settings.showProjectProgress
-                }
-              >
-                <span />
-              </button>
+                label="Toggle project progress"
+              />
             </div>
           </section>
 
           <section className="settings-section">
             <h3>Reset</h3>
 
-            <button
-              type="button"
-              className="reset-settings"
-              onClick={
-                restoreDefaults
-              }
-            >
-              Restore default
-              settings
-            </button>
+            <div className="settings-row">
+              <div>
+                <strong>
+                  Restore defaults
+                </strong>
+
+                <span>
+                  Reset every AetherBot
+                  setting to its original
+                  value.
+                </span>
+              </div>
+
+              <button
+                type="button"
+                className="reset-settings"
+                onClick={
+                  restoreDefaults
+                }
+              >
+                Restore
+              </button>
+            </div>
           </section>
         </div>
       </div>
