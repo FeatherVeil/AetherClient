@@ -1,28 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import MessageContent from "./components/MessageContent";
+import Settings from "./components/Settings";
 import { sendToAI } from "./services/ai";
-import {
-  analyzeProjectMessage
-} from "./services/project";
-import {
-  loadChats,
-  saveChats
-} from "./services/chatStorage";
+import { analyzeProjectMessage } from "./services/project";
+import { loadChats, saveChats } from "./services/chatStorage";
+import { loadSettings } from "./services/settings";
 import "./styles.css";
 
 const MODELS = [
-  {
-    id: "auto",
-    name: "Aether Auto"
-  },
-  {
-    id: "groq",
-    name: "AetherBot"
-  },
-  {
-    id: "gemini",
-    name: "AetherBotPro"
-  }
+  { id: "auto", name: "Aether Auto" },
+  { id: "groq", name: "AetherBot" },
+  { id: "gemini", name: "AetherBotPro" }
 ];
 
 function createChat() {
@@ -42,9 +30,7 @@ function createChat() {
 }
 
 function generateTitle(text) {
-  const cleaned = text
-    .replace(/\s+/g, " ")
-    .trim();
+  const cleaned = text.replace(/\s+/g, " ").trim();
 
   if (!cleaned) {
     return "New chat";
@@ -73,8 +59,7 @@ function calculateProjectProgress(
   let speed = 4;
 
   const setbackCount =
-    previousSetbacks +
-    (analysis.setback ? 1 : 0);
+    previousSetbacks + (analysis.setback ? 1 : 0);
 
   if (setbackCount === 1) {
     speed = 3;
@@ -84,61 +69,78 @@ function calculateProjectProgress(
     speed = 1;
   }
 
-  return Math.min(
-    99,
-    currentProgress + speed
-  );
+  return Math.min(99, currentProgress + speed);
 }
 
 function sortChats(chats) {
   return [...chats].sort(
-    (a, b) =>
-      (b.updatedAt || 0) -
-      (a.updatedAt || 0)
+    (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)
   );
 }
 
 export default function App() {
-  const [chats, setChats] = useState(
-    () => sortChats(loadChats())
-  );
-
-  const [activeChatId, setActiveChatId] =
-    useState(null);
-
-  const [sidebarOpen, setSidebarOpen] =
-    useState(true);
-
-  const [input, setInput] =
-    useState("");
-
-  const [isLoading, setIsLoading] =
-    useState(false);
-
-  const [error, setError] =
-    useState("");
-
-  const [projectMenuOpen, setProjectMenuOpen] =
-    useState(false);
-
-  const [editingChatId, setEditingChatId] =
-    useState(null);
-
-  const [editingTitle, setEditingTitle] =
-    useState("");
+  const [chats, setChats] = useState(() => sortChats(loadChats()));
+  const [activeChatId, setActiveChatId] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [input, setInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [projectMenuOpen, setProjectMenuOpen] = useState(false);
+  const [editingChatId, setEditingChatId] = useState(null);
+  const [editingTitle, setEditingTitle] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState(loadSettings);
 
   const activeChat = useMemo(
     () =>
-      chats.find(
-        (chat) =>
-          chat.id === activeChatId
-      ) || null,
+      chats.find((chat) => chat.id === activeChatId) || null,
     [chats, activeChatId]
   );
+
+  const filteredChats = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    if (!query) {
+      return chats;
+    }
+
+    return chats.filter((chat) => {
+      const titleMatch =
+        chat.title?.toLowerCase().includes(query);
+
+      const messageMatch =
+        chat.messages?.some((message) =>
+          message.content
+            ?.toLowerCase()
+            .includes(query)
+        );
+
+      return titleMatch || messageMatch;
+    });
+  }, [chats, searchQuery]);
 
   useEffect(() => {
     saveChats(chats);
   }, [chats]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme =
+      settings.theme;
+
+    document.documentElement.dataset.accent =
+      settings.accent;
+
+    document.documentElement.classList.toggle(
+      "compact-mode",
+      settings.compactMode
+    );
+
+    document.documentElement.classList.toggle(
+      "reduce-motion",
+      !settings.animations
+    );
+  }, [settings]);
 
   function createNewChat() {
     if (isLoading) {
@@ -148,15 +150,13 @@ export default function App() {
     const chat = createChat();
 
     setChats((current) =>
-      sortChats([
-        chat,
-        ...current
-      ])
+      sortChats([chat, ...current])
     );
 
     setActiveChatId(chat.id);
     setInput("");
     setError("");
+    setSearchQuery("");
     setProjectMenuOpen(false);
   }
 
@@ -177,10 +177,7 @@ export default function App() {
     }
 
     setChats((current) =>
-      current.filter(
-        (chat) =>
-          chat.id !== id
-      )
+      current.filter((chat) => chat.id !== id)
     );
 
     if (activeChatId === id) {
@@ -198,9 +195,7 @@ export default function App() {
   }
 
   function saveRename(id) {
-    const title =
-      editingTitle.trim() ||
-      "New chat";
+    const title = editingTitle.trim() || "New chat";
 
     setChats((current) =>
       sortChats(
@@ -209,8 +204,7 @@ export default function App() {
             ? {
                 ...chat,
                 title,
-                updatedAt:
-                  Date.now()
+                updatedAt: Date.now()
               }
             : chat
         )
@@ -221,10 +215,7 @@ export default function App() {
     setEditingTitle("");
   }
 
-  function updateChat(
-    chatId,
-    changes
-  ) {
+  function updateChat(chatId, changes) {
     setChats((current) =>
       sortChats(
         current.map((chat) =>
@@ -232,8 +223,7 @@ export default function App() {
             ? {
                 ...chat,
                 ...changes,
-                updatedAt:
-                  Date.now()
+                updatedAt: Date.now()
               }
             : chat
         )
@@ -241,17 +231,12 @@ export default function App() {
     );
   }
 
-  function updateActiveChat(
-    changes
-  ) {
+  function updateActiveChat(changes) {
     if (!activeChatId) {
       return;
     }
 
-    updateChat(
-      activeChatId,
-      changes
-    );
+    updateChat(activeChatId, changes);
   }
 
   function toggleProject() {
@@ -259,13 +244,11 @@ export default function App() {
       return;
     }
 
-    const nextValue =
-      !activeChat.isProject;
+    const nextValue = !activeChat.isProject;
 
     updateActiveChat({
       isProject: nextValue,
-      manuallyMarkedProject:
-        nextValue
+      manuallyMarkedProject: nextValue
     });
 
     setProjectMenuOpen(false);
@@ -296,12 +279,11 @@ export default function App() {
     });
   }
 
-  function handleComposerKeyDown(
-    event
-  ) {
+  function handleComposerKeyDown(event) {
     if (
       event.key === "Enter" &&
-      !event.shiftKey
+      !event.shiftKey &&
+      settings.enterToSend
     ) {
       event.preventDefault();
       sendMessage();
@@ -318,23 +300,16 @@ export default function App() {
     setError("");
 
     let chatId = activeChatId;
-
-    let chatForRequest =
-      activeChat;
+    let chatForRequest = activeChat;
 
     if (!chatId) {
-      const newChat =
-        createChat();
+      const newChat = createChat();
 
       chatId = newChat.id;
-      chatForRequest =
-        newChat;
+      chatForRequest = newChat;
 
       setChats((current) =>
-        sortChats([
-          newChat,
-          ...current
-        ])
+        sortChats([newChat, ...current])
       );
 
       setActiveChatId(chatId);
@@ -348,8 +323,7 @@ export default function App() {
     };
 
     const existingMessages =
-      chatForRequest?.messages ||
-      [];
+      chatForRequest?.messages || [];
 
     const requestMessages = [
       ...existingMessages,
@@ -357,21 +331,16 @@ export default function App() {
     ];
 
     const selectedModel =
-      chatForRequest?.model ||
-      "auto";
+      chatForRequest?.model || "auto";
 
     const projectAnalysis =
-      analyzeProjectMessage(
-        text
-      );
+      analyzeProjectMessage(text);
 
     const previousProgress =
-      chatForRequest?.projectProgress ||
-      0;
+      chatForRequest?.projectProgress || 0;
 
     const previousSetbacks =
-      chatForRequest?.projectSetbacks ||
-      0;
+      chatForRequest?.projectSetbacks || 0;
 
     const automaticallyDetectedProject =
       projectAnalysis.isProjectSignal;
@@ -397,29 +366,20 @@ export default function App() {
 
     const updatedChat = {
       ...chatForRequest,
-
       title:
-        chatForRequest.messages
-          .length === 0
+        chatForRequest.messages.length === 0
           ? generateTitle(text)
           : chatForRequest.title,
-
       messages: [
         ...chatForRequest.messages,
         userMessage
       ],
-
-      isProject:
-        shouldBecomeProject,
-
+      isProject: shouldBecomeProject,
       projectProgress:
         projectAnalysis.completed
           ? 100
           : newProgress,
-
-      projectSetbacks:
-        newSetbackCount,
-
+      projectSetbacks: newSetbackCount,
       updatedAt: Date.now()
     };
 
@@ -437,11 +397,10 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      const aiResponse =
-        await sendToAI(
-          selectedModel,
-          requestMessages
-        );
+      const aiResponse = await sendToAI(
+        selectedModel,
+        requestMessages
+      );
 
       const assistantMessage = {
         id: crypto.randomUUID(),
@@ -460,8 +419,7 @@ export default function App() {
                     ...chat.messages,
                     assistantMessage
                   ],
-                  updatedAt:
-                    Date.now()
+                  updatedAt: Date.now()
                 }
               : chat
           )
@@ -486,163 +444,163 @@ export default function App() {
     <div className="aether-app">
       <aside
         className={`aether-sidebar ${
-          sidebarOpen
-            ? "open"
-            : "closed"
+          sidebarOpen ? "open" : "closed"
         }`}
       >
         <div className="sidebar-header">
-          <div className="aether-logo">
-            A
-          </div>
+          <div className="aether-logo">A</div>
 
           {sidebarOpen && (
             <div>
               <h1>AetherBot</h1>
-
-              <span>
-                AI workspace
-              </span>
+              <span>AI workspace</span>
             </div>
           )}
         </div>
 
         {sidebarOpen && (
-          <button
-            className="new-chat-button"
-            onClick={createNewChat}
-          >
-            <span>＋</span>
-            <span>New chat</span>
-          </button>
+          <>
+            <button
+              className="new-chat-button"
+              onClick={createNewChat}
+            >
+              <span>＋</span>
+              <span>New chat</span>
+            </button>
+
+            <div className="chat-search">
+              <span>⌕</span>
+
+              <input
+                value={searchQuery}
+                onChange={(event) =>
+                  setSearchQuery(
+                    event.target.value
+                  )
+                }
+                placeholder="Search chats"
+                aria-label="Search chats"
+              />
+
+              {searchQuery && (
+                <button
+                  onClick={() =>
+                    setSearchQuery("")
+                  }
+                  title="Clear search"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          </>
         )}
 
         <div className="sidebar-section">
           {sidebarOpen && (
             <div className="sidebar-label">
-              Chats
+              {searchQuery
+                ? `Results (${filteredChats.length})`
+                : "Chats"}
             </div>
           )}
 
-          {chats.length === 0 ? (
+          {filteredChats.length === 0 ? (
             sidebarOpen && (
               <div className="empty-chat-list">
-                Your chats will appear here.
+                {searchQuery
+                  ? "No matching chats."
+                  : "Your chats will appear here."}
               </div>
             )
           ) : (
             <div className="chat-list">
-              {chats.map(
-                (chat) => (
-                  <div
-                    key={chat.id}
-                    className={`chat-list-item ${
-                      chat.id ===
-                      activeChatId
-                        ? "active"
-                        : ""
-                    }`}
-                  >
-                    {editingChatId ===
-                    chat.id ? (
-                      <input
-                        autoFocus
-                        className="chat-title-input"
-                        value={
-                          editingTitle
+              {filteredChats.map((chat) => (
+                <div
+                  key={chat.id}
+                  className={`chat-list-item ${
+                    chat.id === activeChatId
+                      ? "active"
+                      : ""
+                  }`}
+                >
+                  {editingChatId === chat.id ? (
+                    <input
+                      autoFocus
+                      className="chat-title-input"
+                      value={editingTitle}
+                      onChange={(event) =>
+                        setEditingTitle(
+                          event.target.value
+                        )
+                      }
+                      onBlur={() =>
+                        saveRename(chat.id)
+                      }
+                      onKeyDown={(event) => {
+                        if (
+                          event.key === "Enter"
+                        ) {
+                          saveRename(chat.id);
                         }
-                        onChange={(
-                          event
-                        ) =>
-                          setEditingTitle(
-                            event.target
-                              .value
-                          )
-                        }
-                        onBlur={() =>
-                          saveRename(
-                            chat.id
-                          )
-                        }
-                        onKeyDown={(
-                          event
-                        ) => {
-                          if (
-                            event.key ===
-                            "Enter"
-                          ) {
-                            saveRename(
-                              chat.id
-                            );
-                          }
 
-                          if (
-                            event.key ===
-                            "Escape"
-                          ) {
-                            setEditingChatId(
-                              null
-                            );
-                          }
-                        }}
-                      />
-                    ) : (
-                      <>
+                        if (
+                          event.key === "Escape"
+                        ) {
+                          setEditingChatId(null);
+                        }
+                      }}
+                    />
+                  ) : (
+                    <>
+                      <button
+                        className="chat-select"
+                        onClick={() =>
+                          selectChat(chat.id)
+                        }
+                        onDoubleClick={() =>
+                          startRename(chat)
+                        }
+                        title="Double-click to rename"
+                      >
+                        {sidebarOpen
+                          ? chat.title
+                          : "•"}
+                      </button>
+
+                      {sidebarOpen && (
                         <button
-                          className="chat-select"
+                          className="chat-delete"
                           onClick={() =>
-                            selectChat(
-                              chat.id
-                            )
+                            deleteChat(chat.id)
                           }
-                          onDoubleClick={() =>
-                            startRename(
-                              chat
-                            )
-                          }
-                          title="Double-click to rename"
+                          title="Delete chat"
                         >
-                          {sidebarOpen
-                            ? chat.title
-                            : "•"}
+                          ×
                         </button>
-
-                        {sidebarOpen && (
-                          <button
-                            className="chat-delete"
-                            onClick={() =>
-                              deleteChat(
-                                chat.id
-                              )
-                            }
-                            title="Delete chat"
-                          >
-                            ×
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )
-              )}
+                      )}
+                    </>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>
 
         {sidebarOpen && (
           <div className="sidebar-bottom">
-            <button>
+            <button
+              onClick={() =>
+                setSettingsOpen(true)
+              }
+            >
               ⚙
-              <span>
-                Settings
-              </span>
+              <span>Settings</span>
             </button>
 
             <button>
               ◇
-              <span>
-                AetherCode
-              </span>
+              <span>AetherCode</span>
             </button>
           </div>
         )}
@@ -674,8 +632,7 @@ export default function App() {
                 <button
                   onClick={() =>
                     setProjectMenuOpen(
-                      (open) =>
-                        !open
+                      (open) => !open
                     )
                   }
                   title="Project options"
@@ -686,10 +643,7 @@ export default function App() {
                 {projectMenuOpen && (
                   <div className="project-menu">
                     <div className="project-menu-status">
-                      <span>
-                        Project
-                      </span>
-
+                      <span>Project</span>
                       <span>
                         {
                           activeChat.projectProgress
@@ -725,9 +679,7 @@ export default function App() {
         <section className="chat-workspace">
           {!activeChat ? (
             <div className="welcome-screen">
-              <div className="welcome-logo">
-                A
-              </div>
+              <div className="welcome-logo">A</div>
 
               <h2>
                 How can AetherBot help?
@@ -741,90 +693,83 @@ export default function App() {
 
               <button
                 className="welcome-new-chat"
-                onClick={
-                  createNewChat
-                }
+                onClick={createNewChat}
               >
                 Start a new chat
               </button>
             </div>
           ) : (
             <>
-              {activeChat.isProject && (
-                <div className="project-progress">
-                  <div className="project-progress-header">
-                    <div>
-                      <span className="project-icon">
-                        ◇
-                      </span>
+              {activeChat.isProject &&
+                settings.showProjectProgress && (
+                  <div className="project-progress">
+                    <div className="project-progress-header">
+                      <div>
+                        <span className="project-icon">
+                          ◇
+                        </span>
 
-                      <span className="project-label">
-                        Project
+                        <span className="project-label">
+                          Project
+                        </span>
+                      </div>
+
+                      <span className="project-percent">
+                        {
+                          activeChat.projectProgress
+                        }
+                        %
                       </span>
                     </div>
 
-                    <span className="project-percent">
-                      {
-                        activeChat.projectProgress
-                      }
-                      %
-                    </span>
-                  </div>
+                    <div className="project-progress-track">
+                      <div
+                        className="project-progress-fill"
+                        style={{
+                          width: `${activeChat.projectProgress}%`
+                        }}
+                      />
+                    </div>
 
-                  <div className="project-progress-track">
-                    <div
-                      className="project-progress-fill"
-                      style={{
-                        width: `${activeChat.projectProgress}%`
-                      }}
-                    />
-                  </div>
+                    <div className="project-progress-footer">
+                      <span>
+                        {activeChat.projectSetbacks >
+                        0
+                          ? "Progress continues at a reduced rate after setbacks."
+                          : "AetherBot is tracking this project."}
+                      </span>
 
-                  <div className="project-progress-footer">
-                    <span>
-                      {activeChat.projectSetbacks >
-                      0
-                        ? "Progress continues at a reduced rate after setbacks."
-                        : "AetherBot is tracking this project."}
-                    </span>
-
-                    {activeChat.projectProgress <
-                      100 && (
-                      <button
-                        onClick={
-                          markProjectDone
-                        }
-                      >
-                        Mark done
-                      </button>
-                    )}
+                      {activeChat.projectProgress <
+                        100 && (
+                        <button
+                          onClick={
+                            markProjectDone
+                          }
+                        >
+                          Mark done
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               <div className="conversation">
-                {activeChat.messages.length ===
-                0 ? (
+                {activeChat.messages.length === 0 ? (
                   <div className="conversation-empty">
                     <h2>
                       {activeChat.title}
                     </h2>
 
                     <p>
-                      Send a message to
-                      begin.
+                      Send a message to begin.
                     </p>
                   </div>
                 ) : (
                   <div className="message-list">
                     {activeChat.messages.map(
-                      (
-                        message
-                      ) => (
+                      (message) => (
                         <div
-                          key={
-                            message.id
-                          }
+                          key={message.id}
                           className={`message-row ${message.role}`}
                         >
                           <div className="message-bubble">
@@ -855,31 +800,7 @@ export default function App() {
               </div>
 
               {error && (
-                <div
-                  style={{
-                    position:
-                      "absolute",
-                    bottom:
-                      "112px",
-                    width:
-                      "min(760px, calc(100% - 40px))",
-                    left: "50%",
-                    transform:
-                      "translateX(-50%)",
-                    padding:
-                      "9px 12px",
-                    border:
-                      "1px solid #49353a",
-                    borderRadius:
-                      "9px",
-                    background:
-                      "#201619",
-                    color:
-                      "#e3aeb5",
-                    fontSize:
-                      "12px"
-                  }}
-                >
+                <div className="aether-error">
                   {error}
                 </div>
               )}
@@ -904,49 +825,31 @@ export default function App() {
                   <div className="composer-tools">
                     <button
                       title="Attach"
-                      disabled={
-                        isLoading
-                      }
+                      disabled={isLoading}
                     >
                       ＋
                     </button>
 
                     <select
                       className="model-selector"
-                      value={
-                        activeChat.model
-                      }
-                      onChange={
-                        changeModel
-                      }
-                      disabled={
-                        isLoading
-                      }
+                      value={activeChat.model}
+                      onChange={changeModel}
+                      disabled={isLoading}
                     >
-                      {MODELS.map(
-                        (model) => (
-                          <option
-                            key={
-                              model.id
-                            }
-                            value={
-                              model.id
-                            }
-                          >
-                            {
-                              model.name
-                            }
-                          </option>
-                        )
-                      )}
+                      {MODELS.map((model) => (
+                        <option
+                          key={model.id}
+                          value={model.id}
+                        >
+                          {model.name}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
                   <button
                     className="send-button"
-                    onClick={
-                      sendMessage
-                    }
+                    onClick={sendMessage}
                     disabled={
                       !input.trim() ||
                       isLoading
@@ -961,6 +864,17 @@ export default function App() {
           )}
         </section>
       </main>
+
+      {settingsOpen && (
+        <Settings
+          onClose={() =>
+            setSettingsOpen(false)
+          }
+          onSettingsChange={
+            setSettings
+          }
+        />
+      )}
     </div>
   );
-}         
+}
